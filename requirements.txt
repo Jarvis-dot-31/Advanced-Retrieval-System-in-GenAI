@@ -1,0 +1,11 @@
+fastapi
+uvicorn
+sentence-transformers
+opensearch-py
+faiss-cpu
+neo4j
+openai
+numpy
+pandas
+pydantic        
+litellm
