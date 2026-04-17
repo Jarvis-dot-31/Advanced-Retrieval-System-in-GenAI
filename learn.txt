@@ -1,0 +1,41 @@
+{
+  "mappings": {
+    "properties": {
+      "id": { "type": "keyword", "index": false }, 
+      "name": { "type": "text" },
+      "core_skills": { "type": "text", "boost": 2.0 },
+      "potential_roles": { "type": "text", "boost": 1.5 },
+      "secondary_skills": { "type": "text" },
+      "skill_summary": { "type": "text" },
+      "years_of_experience": { "type": "float" }
+    }
+  }
+}
+
+
+
+"Roles: Software Engineer, Backend Developer, DevOps. Core Skills: Python, SQL, Azure DevOps. Secondary Skills: CI/CD, Cloud. Profile: This candidate is a fresher with foundational knowledge..."
+
+[Candidate Node: 181457] --- (HAS_SOFT_SKILL) ---> [SoftSkill Node: "Teamwork"]
+[Candidate Node: 181457] --- (HAS_SOFT_SKILL) ---> [SoftSkill Node: "Time Management"]
+[Candidate Node: 181457] --- (HAS_SOFT_SKILL) ---> [SoftSkill Node: "Adaptability"]
+
+
+{
+  "search_terms": ["backend developer", "cloud", "AWS", "Azure"],
+  "semantic_query": "Backend developer with cloud infrastructure experience",
+  "min_experience": 2.0
+}
+
+
+
+
+
+
+
+{
+  "search_terms": ["backend developer", "cloud", "AWS", "Azure"],
+  "semantic_query": "Backend developer with cloud infrastructure experience",
+  "min_experience": 2.0
+}
+
