@@ -6,6 +6,7 @@ import ParticleBackground from './components/ParticleBackground';
 import ProtectedRoute from './components/ProtectedRoute';
 import LandingPage from './pages/LandingPage';
 import LoginPage from './pages/LoginPage';
+import SignUpPage from './pages/SignUpPage';
 import SearchPage from './pages/SearchPage';
 
 export default function App() {
@@ -19,6 +20,7 @@ export default function App() {
             <Routes>
               <Route path="/" element={<LandingPage />} />
               <Route path="/login" element={<LoginPage />} />
+              <Route path="/signup" element={<SignUpPage />} />
               <Route
                 path="/search"
                 element={

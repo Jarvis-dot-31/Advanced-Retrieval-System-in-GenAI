@@ -12,7 +12,7 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setTheme] = useState<Theme>(() => {
     const saved = localStorage.getItem('hs-theme');
-    return (saved === 'dark' || saved === 'light') ? saved : 'light';
+    return (saved === 'dark' || saved === 'light') ? saved : 'dark';
   });
 
   useEffect(() => {

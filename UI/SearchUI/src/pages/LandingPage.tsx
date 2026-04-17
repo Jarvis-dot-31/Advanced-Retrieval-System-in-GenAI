@@ -168,10 +168,10 @@ export default function LandingPage() {
         <Container>
           <div className="text-center text-muted-custom">
             <p className="mb-1">
-              <strong>HybridSearch</strong> — Intent-Aware & Explainable Hybrid Retrieval System
+              <strong>INSIGHT</strong> — Intent-Aware Neural Search with Integrated Graph and Hybrid Techniques
             </p>
             <p className="mb-0 small">
-              Built for the GenAI Hackathon &bull; 2026
+              Built for CS-671 HCLTech Hackathon &bull; 2026
             </p>
           </div>
         </Container>

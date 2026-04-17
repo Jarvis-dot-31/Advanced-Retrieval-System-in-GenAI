@@ -2,14 +2,16 @@ import { useState, type FormEvent } from 'react';
 import { useNavigate, Link, Navigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { Container, Card, Form, Button, Alert } from 'react-bootstrap';
-import { FiMail, FiLock, FiLogIn } from 'react-icons/fi';
+import { FiMail, FiLock, FiUser, FiUserPlus } from 'react-icons/fi';
 
-export default function LoginPage() {
+export default function SignUpPage() {
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const { login, isAuthenticated } = useAuth();
+  const { signup, isAuthenticated } = useAuth();
   const navigate = useNavigate();
 
   // If already logged in, redirect
@@ -21,18 +23,28 @@ export default function LoginPage() {
     e.preventDefault();
     setError('');
 
-    if (!email || !password) {
+    if (!name || !email || !password || !confirmPassword) {
       setError('Please fill in all fields.');
+      return;
+    }
+
+    if (password.length < 6) {
+      setError('Password must be at least 6 characters.');
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setError('Passwords do not match.');
       return;
     }
 
     setLoading(true);
     try {
-      const success = await login(email, password);
+      const success = await signup(name, email, password);
       if (success) {
         navigate('/search', { replace: true });
       } else {
-        setError('Invalid credentials. Please try again.');
+        setError('Sign up failed. Please try again.');
       }
     } catch {
       setError('An error occurred. Please try again.');
@@ -48,20 +60,35 @@ export default function LoginPage() {
           <Card.Body className="p-4 p-md-5">
             <div className="text-center mb-4">
               <div className="login-icon-wrapper mb-3">
-                <FiLogIn size={28} />
+                <FiUserPlus size={28} />
               </div>
-              <h2 className="fw-bold mb-1">Welcome Back</h2>
-              <p className="text-muted-custom">Sign in to access INSIGHT</p>
+              <h2 className="fw-bold mb-1">Create Account</h2>
+              <p className="text-muted-custom">Sign up to get started with INSIGHT</p>
             </div>
 
             {error && (
-              <Alert variant="danger" className="py-2 small" id="login-error">
+              <Alert variant="danger" className="py-2 small" id="signup-error">
                 {error}
               </Alert>
             )}
 
-            <Form onSubmit={handleSubmit} id="login-form">
-              <Form.Group className="mb-3" controlId="login-email">
+            <Form onSubmit={handleSubmit} id="signup-form">
+              <Form.Group className="mb-3" controlId="signup-name">
+                <Form.Label className="small fw-medium">Full Name</Form.Label>
+                <div className="input-icon-wrapper">
+                  <FiUser className="input-icon" size={16} />
+                  <Form.Control
+                    type="text"
+                    placeholder="John Doe"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    className="ps-5"
+                    autoFocus
+                  />
+                </div>
+              </Form.Group>
+
+              <Form.Group className="mb-3" controlId="signup-email">
                 <Form.Label className="small fw-medium">Email address</Form.Label>
                 <div className="input-icon-wrapper">
                   <FiMail className="input-icon" size={16} />
@@ -71,12 +98,11 @@ export default function LoginPage() {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     className="ps-5"
-                    autoFocus
                   />
                 </div>
               </Form.Group>
 
-              <Form.Group className="mb-4" controlId="login-password">
+              <Form.Group className="mb-3" controlId="signup-password">
                 <Form.Label className="small fw-medium">Password</Form.Label>
                 <div className="input-icon-wrapper">
                   <FiLock className="input-icon" size={16} />
@@ -90,19 +116,33 @@ export default function LoginPage() {
                 </div>
               </Form.Group>
 
+              <Form.Group className="mb-4" controlId="signup-confirm-password">
+                <Form.Label className="small fw-medium">Confirm Password</Form.Label>
+                <div className="input-icon-wrapper">
+                  <FiLock className="input-icon" size={16} />
+                  <Form.Control
+                    type="password"
+                    placeholder="••••••••"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    className="ps-5"
+                  />
+                </div>
+              </Form.Group>
+
               <Button
                 type="submit"
                 className="w-100 btn-accent d-flex align-items-center justify-content-center gap-2"
                 size="lg"
                 disabled={loading}
-                id="login-submit"
+                id="signup-submit"
               >
                 {loading ? (
                   <span className="spinner-border spinner-border-sm" />
                 ) : (
                   <>
-                    <FiLogIn size={18} />
-                    Sign In
+                    <FiUserPlus size={18} />
+                    Create Account
                   </>
                 )}
               </Button>
@@ -110,9 +150,9 @@ export default function LoginPage() {
 
             <div className="text-center mt-4">
               <span className="text-muted-custom small">
-                Don't have an account?{' '}
-                <Link to="/signup" className="text-accent fw-medium">
-                  Sign Up
+                Already have an account?{' '}
+                <Link to="/login" className="text-accent fw-medium">
+                  Sign In
                 </Link>
               </span>
             </div>

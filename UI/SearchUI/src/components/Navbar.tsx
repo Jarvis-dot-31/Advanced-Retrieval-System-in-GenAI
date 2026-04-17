@@ -1,7 +1,7 @@
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
-import { FiSun, FiMoon, FiSearch, FiLogOut, FiLogIn } from 'react-icons/fi';
+import { FiSun, FiMoon, FiSearch, FiLogOut, FiLogIn, FiUserPlus } from 'react-icons/fi';
 import { Navbar as BsNavbar, Nav, Container, Button } from 'react-bootstrap';
 
 export default function Navbar() {
@@ -24,7 +24,7 @@ export default function Navbar() {
       <Container>
         <BsNavbar.Brand as={Link} to="/" className="brand-logo d-flex align-items-center gap-2">
           <FiSearch size={22} className="brand-icon" />
-          <span className="fw-bold">HybridSearch</span>
+          <span className="fw-bold">INSIGHT</span>
         </BsNavbar.Brand>
 
         <BsNavbar.Toggle aria-controls="main-navbar" />
@@ -77,16 +77,28 @@ export default function Navbar() {
                 </Button>
               </div>
             ) : (
-              <Button
-                id="login-btn"
-                variant="primary"
-                size="sm"
-                onClick={() => navigate('/login')}
-                className="d-flex align-items-center gap-1 btn-accent"
-              >
-                <FiLogIn size={14} />
-                Login
-              </Button>
+              <>
+                <Button
+                  id="signup-nav-btn"
+                  variant="outline-primary"
+                  size="sm"
+                  onClick={() => navigate('/signup')}
+                  className="d-flex align-items-center gap-1 btn-signup-nav"
+                >
+                  <FiUserPlus size={14} />
+                  Sign Up
+                </Button>
+                <Button
+                  id="login-btn"
+                  variant="primary"
+                  size="sm"
+                  onClick={() => navigate('/login')}
+                  className="d-flex align-items-center gap-1 btn-accent"
+                >
+                  <FiLogIn size={14} />
+                  Login
+                </Button>
+              </>
             )}
           </div>
         </BsNavbar.Collapse>

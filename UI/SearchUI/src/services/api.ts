@@ -1,6 +1,9 @@
 // ─── API Configuration ───────────────────────────────────────────────
 export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
+// ─── Resume Upload API (placeholder — replace with real endpoint) ────
+export const RESUME_UPLOAD_API_URL = 'http://localhost:8000/api';
+
 // ─── Types ───────────────────────────────────────────────────────────
 
 export type RetrievalMode = 'lexical' | 'semantic' | 'hybrid';
@@ -93,6 +96,31 @@ export async function getKnowledgeGraph(query: string): Promise<unknown> {
 
   if (!response.ok) {
     throw new Error(`Knowledge graph request failed: ${response.statusText}`);
+  }
+
+  return response.json();
+}
+
+// ─── Resume Upload ───────────────────────────────────────────────────
+
+export interface ResumeUploadResponse {
+  success: boolean;
+  message: string;
+  resume_id?: string;
+}
+
+export async function uploadResume(file: File): Promise<ResumeUploadResponse> {
+  const formData = new FormData();
+  formData.append('resume', file);
+
+  const response = await fetch(RESUME_UPLOAD_API_URL, {
+    method: 'POST',
+    body: formData,
+    // Do NOT set Content-Type — the browser will set it with the boundary
+  });
+
+  if (!response.ok) {
+    throw new Error(`Resume upload failed: ${response.statusText}`);
   }
 
   return response.json();
