@@ -1,3 +1,5 @@
+'use client';
+
 import { createContext, useContext, useState, type ReactNode } from 'react';
 
 export type UserRole = 'user' | 'recruiter';
@@ -20,8 +22,11 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(() => {
-    const saved = localStorage.getItem('hs-user');
-    return saved ? JSON.parse(saved) : null;
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('hs-user');
+      return saved ? JSON.parse(saved) : null;
+    }
+    return null;
   });
 
   const login = async (email: string, _password: string): Promise<boolean> => {

@@ -1,4 +1,6 @@
-import { Link } from 'react-router-dom';
+'use client';
+
+import Link from 'next/link';
 import { Container, Row, Col, Card, Button } from 'react-bootstrap';
 import {
   FiSearch,
@@ -75,7 +77,7 @@ export default function LandingPage() {
               </p>
               <div className="d-flex gap-3 justify-content-center mt-4">
                 <Link
-                  to="/search"
+                  href="/search"
                   className="btn btn-lg btn-accent d-flex align-items-center gap-2"
                 >
                   Try It Now

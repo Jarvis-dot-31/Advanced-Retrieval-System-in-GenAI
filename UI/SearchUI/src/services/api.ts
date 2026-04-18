@@ -1,5 +1,5 @@
 // ─── API Configuration ───────────────────────────────────────────────
-export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 // ─── Resume Upload API (placeholder — replace with real endpoint) ────
 export const RESUME_UPLOAD_API_URL = 'http://localhost:8000/api';

@@ -1,3 +1,5 @@
+'use client';
+
 import { useState, useRef, useCallback, type DragEvent } from 'react';
 import {
   Container,

@@ -1,4 +1,7 @@
-import { Link, useNavigate, useLocation } from 'react-router-dom';
+'use client';
+
+import Link from 'next/link';
+import { useRouter, usePathname } from 'next/navigation';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
 import { FiSun, FiMoon, FiSearch, FiLogOut, FiLogIn, FiUserPlus, FiUploadCloud } from 'react-icons/fi';
@@ -7,12 +10,12 @@ import { Navbar as BsNavbar, Nav, Container, Button, Badge } from 'react-bootstr
 export default function Navbar() {
   const { theme, toggleTheme } = useTheme();
   const { isAuthenticated, user, logout } = useAuth();
-  const navigate = useNavigate();
-  const location = useLocation();
+  const router = useRouter();
+  const pathname = usePathname();
 
   const handleLogout = () => {
     logout();
-    navigate('/');
+    router.push('/');
   };
 
   const dashboardPath = user?.role === 'recruiter' ? '/search' : '/upload';
@@ -25,7 +28,7 @@ export default function Navbar() {
       sticky="top"
     >
       <Container>
-        <BsNavbar.Brand as={Link} to="/" className="brand-logo d-flex align-items-center gap-2">
+        <BsNavbar.Brand as={Link} href="/" className="brand-logo d-flex align-items-center gap-2">
           <FiSearch size={22} className="brand-icon" />
           <span className="fw-bold">INSIGHT</span>
         </BsNavbar.Brand>
@@ -36,16 +39,16 @@ export default function Navbar() {
           <Nav className="me-auto">
             <Nav.Link
               as={Link}
-              to="/"
-              className={location.pathname === '/' ? 'active' : ''}
+              href="/"
+              className={pathname === '/' ? 'active' : ''}
             >
               Home
             </Nav.Link>
             {isAuthenticated && user?.role === 'recruiter' && (
               <Nav.Link
                 as={Link}
-                to="/search"
-                className={location.pathname === '/search' ? 'active' : ''}
+                href="/search"
+                className={pathname === '/search' ? 'active' : ''}
               >
                 <FiSearch size={14} className="me-1" />
                 Search
@@ -54,8 +57,8 @@ export default function Navbar() {
             {isAuthenticated && user?.role === 'user' && (
               <Nav.Link
                 as={Link}
-                to="/upload"
-                className={location.pathname === '/upload' ? 'active' : ''}
+                href="/upload"
+                className={pathname === '/upload' ? 'active' : ''}
               >
                 <FiUploadCloud size={14} className="me-1" />
                 Upload Resume
@@ -88,7 +91,7 @@ export default function Navbar() {
                   id="dashboard-btn"
                   variant="outline-primary"
                   size="sm"
-                  onClick={() => navigate(dashboardPath)}
+                  onClick={() => router.push(dashboardPath)}
                   className="d-flex align-items-center gap-1 btn-signup-nav d-lg-none"
                 >
                   {user?.role === 'recruiter' ? <FiSearch size={14} /> : <FiUploadCloud size={14} />}
@@ -111,7 +114,7 @@ export default function Navbar() {
                   id="signup-nav-btn"
                   variant="outline-primary"
                   size="sm"
-                  onClick={() => navigate('/signup')}
+                  onClick={() => router.push('/signup')}
                   className="d-flex align-items-center gap-1 btn-signup-nav"
                 >
                   <FiUserPlus size={14} />
@@ -121,7 +124,7 @@ export default function Navbar() {
                   id="login-btn"
                   variant="primary"
                   size="sm"
-                  onClick={() => navigate('/login')}
+                  onClick={() => router.push('/login')}
                   className="d-flex align-items-center gap-1 btn-accent"
                 >
                   <FiLogIn size={14} />
