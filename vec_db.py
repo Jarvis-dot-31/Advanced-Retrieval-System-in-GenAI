@@ -13,13 +13,6 @@ docs=[]
 
 for id,row in df.iterrows():
     tp=f"""
-    id: {row['id']}
-    name: {row['name']}
-    core_skills: {row['core_skills']}
-    secondary_skills: {row['secondary_skills']}
-    soft_skills: {row['soft_skills']}
-    years_of_experience: {row['years_of_experience']}
-    potential_roles: {row['potential_roles']}
     skill_summary: {row['skill_summary']}
     """
     docs.append(tp)
@@ -35,11 +28,11 @@ with open("docs.pickle","wb") as f:
   pickle.dump(docs,f)
 faiss.write_index(index,"docs.index")
 
-query="Who are having python as their core skill and having experience of more than 1 year atleast and is a fullstack?"
+query="Someone good at building cloud infrastructure"
 
 enc=model.encode([query])
 enc=np.array(enc).astype('float32')
-dist,ind=index.search(enc,k=50)
+dist,ind=index.search(enc,k=5)
 
 for i in range(len(ind[0])):
   print(f'Confidence: {dist[0][i]:.4f}')

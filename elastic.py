@@ -49,7 +49,7 @@ res = es.search(
                                 "soft_skills^2",
                                 "skill_summary"
                             ],
-                            "operator": "and"
+                            "operator": "or"
                         }
                     }
                 ],
