@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { Inter } from 'next/font/google';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import './globals.css';
 import { ThemeProvider } from '@/contexts/ThemeContext';
@@ -6,8 +7,13 @@ import { AuthProvider } from '@/contexts/AuthContext';
 import Navbar from '@/components/Navbar';
 import ParticleBackground from '@/components/ParticleBackground';
 
+const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
+
 export const metadata: Metadata = {
-  title: 'INSIGHT',
+  title: {
+    template: '%s | INSIGHT',
+    default: 'INSIGHT - Hybrid Search',
+  },
   description: 'INSIGHT — Intent-aware Neural Search with Integrated Graph and Hybrid Techniques',
   icons: {
     icon: '/favicon.svg',
@@ -20,7 +26,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" data-theme="dark" data-bs-theme="dark" suppressHydrationWarning>
+    <html lang="en" data-theme="dark" data-bs-theme="dark" suppressHydrationWarning className={inter.className}>
       <body>
         <ThemeProvider>
           <AuthProvider>
