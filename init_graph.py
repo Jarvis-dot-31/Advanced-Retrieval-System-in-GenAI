@@ -8,7 +8,7 @@ import os
 
 def run_pipeline(csv_path: str):
     df = pd.read_csv(csv_path).fillna("")
-    faiss_path = "/home/pranab/dl_hackathon/Vecdb_embeddings/docs.index"
+    faiss_path = "Vecdb_embeddings/docs.index"
     if not os.path.exists(faiss_path):
         print(f"Error: {faiss_path} not found. Please run vec_db.py first.")
         return
@@ -33,4 +33,4 @@ def run_pipeline(csv_path: str):
         kg.build_candidate_similarity_edges()
 
 if __name__ == "__main__":
-    run_pipeline("/home/pranab/dl_hackathon/Dataset/profiles.csv")
+    run_pipeline("Dataset/profiles.csv")
