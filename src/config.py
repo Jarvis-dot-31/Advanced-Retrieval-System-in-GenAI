@@ -16,4 +16,4 @@ CROSS_ENCODER_MODEL_NAME = "cross-encoder/ms-marco-MiniLM-L-6-v2"
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "ollama")
 OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "http://localhost:11434/v1")
-LLM_MODEL_NAME = os.getenv("LLM_MODEL_NAME", "qwen3.5:cloud")
+LLM_MODEL_NAME = os.getenv("LLM_MODEL_NAME", "llama3:latest")

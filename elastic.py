@@ -1,7 +1,20 @@
-from elasticsearch import Elasticsearch
+from opensearchpy import OpenSearch
 import pandas as pd
+from src import config
 
-es=Elasticsearch("http://localhost:9200")
+host = config.OPENSEARCH_HOST
+port = config.OPENSEARCH_PORT
+auth = (config.OPENSEARCH_USER, config.OPENSEARCH_PASS)
+
+es = OpenSearch(
+    hosts = [{'host': host, 'port': port}],
+    http_compress = True,
+    http_auth = auth,
+    use_ssl = False,
+    verify_certs = False,
+    ssl_assert_hostname = False,
+    ssl_show_warn = False,
+)
 mapping={
     "mappings":{
         "properties":{
@@ -16,7 +29,10 @@ mapping={
     }
 }
 
-es.options(ignore_status=400).indices.create(index="res_docs", body=mapping)
+try:
+    es.indices.create(index=config.OPENSEARCH_INDEX, body=mapping)
+except Exception as e:
+    pass
 df=pd.read_csv("/home/pranab/dl_hackathon/Dataset/profiles.csv")
 df = df.where(pd.notnull(df), None)
 
@@ -30,11 +46,11 @@ for i,row in df.iterrows():
         "potential_roles": row["potential_roles"],
         "skill_summary": row["skill_summary"]
     }
-    es.index(index="res_docs",id=i,document=text)
+    es.index(index=config.OPENSEARCH_INDEX, id=i, body=text)
 
 query="Python backend developer"
 res = es.search(
-    index="res_docs",
+    index=config.OPENSEARCH_INDEX,
     body={
         "query": {
             "bool": {
