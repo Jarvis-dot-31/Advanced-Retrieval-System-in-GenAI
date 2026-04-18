@@ -441,6 +441,67 @@ a:hover {
   pointer-events: none;
 }
 
+/* ─── Google Sign-In Button ──────────────────────────────────────── */
+.btn-google {
+  background: #ffffff !important;
+  border: 1.5px solid #dadce0 !important;
+  color: #3c4043 !important;
+  font-weight: 600;
+  font-size: 0.95rem;
+  border-radius: 8px;
+  transition: background-color 0.2s, border-color 0.2s, box-shadow 0.2s, transform 0.15s;
+}
+
+.btn-google:hover,
+.btn-google:focus {
+  background: #f7f8f8 !important;
+  border-color: #c6c8ca !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  transform: translateY(-1px);
+  color: #1a1a1a !important;
+}
+
+.btn-google:disabled {
+  opacity: 0.65;
+  transform: none;
+}
+
+[data-theme='dark'] .btn-google {
+  background: var(--bg-tertiary) !important;
+  border-color: var(--border-color) !important;
+  color: var(--text-primary) !important;
+}
+
+[data-theme='dark'] .btn-google:hover,
+[data-theme='dark'] .btn-google:focus {
+  background: var(--bg-secondary) !important;
+  border-color: var(--accent) !important;
+  box-shadow: 0 2px 8px rgba(56, 189, 248, 0.1);
+}
+
+/* ─── Auth Divider ("or") ────────────────────────────────────────── */
+.auth-divider {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.auth-divider::before,
+.auth-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border-color);
+}
+
+.auth-divider span {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
 /* Bootstrap form overrides for theme */
 .form-control,
 .form-select {

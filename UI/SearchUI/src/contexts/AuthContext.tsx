@@ -1,67 +1,122 @@
 'use client';
 
-import { createContext, useContext, useState, type ReactNode } from 'react';
+import { createContext, useContext, useCallback, type ReactNode } from 'react';
+import { useSession, signIn, signOut } from 'next-auth/react';
 
 export type UserRole = 'user' | 'recruiter';
 
 interface User {
   email: string;
   name: string;
-  role: UserRole;
+  role: UserRole | null;
+  image?: string;
 }
 
 interface AuthContextType {
   isAuthenticated: boolean;
   user: User | null;
-  login: (email: string, _password: string) => Promise<boolean>;
-  signup: (name: string, email: string, password: string, role: UserRole) => Promise<boolean>;
+  loading: boolean;
+  needsRoleSelection: boolean;
+  login: (email: string, password: string) => Promise<{ ok: boolean; error?: string }>;
+  loginWithGoogle: () => Promise<void>;
+  signup: (name: string, email: string, password: string, role: UserRole) => Promise<{ ok: boolean; error?: string }>;
   logout: () => void;
+  setRole: (role: UserRole) => Promise<boolean>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('hs-user');
-      return saved ? JSON.parse(saved) : null;
-    }
-    return null;
-  });
+  const { data: session, status, update } = useSession();
+  const loading = status === 'loading';
 
-  const login = async (email: string, _password: string): Promise<boolean> => {
-    // Simulated login — replace with real API call
-    // Load role from stored data (in a real app, the server returns this)
-    const stored = localStorage.getItem('hs-user-data-' + email);
-    const role: UserRole = stored ? JSON.parse(stored).role : 'user';
+  const user: User | null = session?.user
+    ? {
+        email: session.user.email || '',
+        name: session.user.name || '',
+        role: (session.user.role as UserRole) || null,
+        image: session.user.image || undefined,
+      }
+    : null;
 
-    const newUser: User = {
+  const isAuthenticated = !!session?.user;
+  const needsRoleSelection = isAuthenticated && user?.role === null;
+
+  const login = useCallback(async (email: string, password: string) => {
+    const result = await signIn('credentials', {
       email,
-      name: email.split('@')[0],
-      role,
-    };
-    setUser(newUser);
-    localStorage.setItem('hs-user', JSON.stringify(newUser));
-    return true;
-  };
+      password,
+      redirect: false,
+    });
 
-  const signup = async (name: string, email: string, _password: string, role: UserRole): Promise<boolean> => {
-    // Simulated signup — replace with real API call
-    const newUser: User = { email, name, role };
-    setUser(newUser);
-    localStorage.setItem('hs-user', JSON.stringify(newUser));
-    // Also persist role separately so login can retrieve it
-    localStorage.setItem('hs-user-data-' + email, JSON.stringify({ role }));
-    return true;
-  };
+    if (result?.error) {
+      return { ok: false, error: result.error };
+    }
+    return { ok: true };
+  }, []);
 
-  const logout = () => {
-    setUser(null);
-    localStorage.removeItem('hs-user');
-  };
+  const loginWithGoogle = useCallback(async () => {
+    await signIn('google', { callbackUrl: '/select-role' });
+  }, []);
+
+  const signup = useCallback(async (name: string, email: string, password: string, role: UserRole) => {
+    // First, register the user via our API
+    const res = await fetch('/api/auth/signup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, email, password, role }),
+    });
+
+    const data = await res.json();
+    if (!res.ok) {
+      return { ok: false, error: data.error || 'Signup failed' };
+    }
+
+    // Then sign them in automatically
+    const signInResult = await signIn('credentials', {
+      email,
+      password,
+      redirect: false,
+    });
+
+    if (signInResult?.error) {
+      return { ok: false, error: signInResult.error };
+    }
+    return { ok: true };
+  }, []);
+
+  const setRole = useCallback(async (role: UserRole) => {
+    const res = await fetch('/api/auth/set-role', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ role }),
+    });
+
+    if (!res.ok) return false;
+
+    // Update the client-side session with the new role
+    await update({ role });
+    return true;
+  }, [update]);
+
+  const logout = useCallback(() => {
+    signOut({ callbackUrl: '/' });
+  }, []);
 
   return (
-    <AuthContext.Provider value={{ isAuthenticated: !!user, user, login, signup, logout }}>
+    <AuthContext.Provider
+      value={{
+        isAuthenticated,
+        user,
+        loading,
+        needsRoleSelection,
+        login,
+        loginWithGoogle,
+        signup,
+        logout,
+        setRole,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

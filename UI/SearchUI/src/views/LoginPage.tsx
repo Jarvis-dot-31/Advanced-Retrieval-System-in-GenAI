@@ -6,23 +6,30 @@ import Link from 'next/link';
 import { useAuth } from '../contexts/AuthContext';
 import { Container, Card, Form, Button, Alert } from 'react-bootstrap';
 import { FiMail, FiLock, FiLogIn } from 'react-icons/fi';
+import { FcGoogle } from 'react-icons/fc';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const { login, isAuthenticated, user } = useAuth();
+  const [googleLoading, setGoogleLoading] = useState(false);
+  const { login, loginWithGoogle, isAuthenticated, user, loading: authLoading } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
+    if (authLoading) return;
     if (isAuthenticated && user) {
-      const redirectTo = user.role === 'recruiter' ? '/search' : '/upload';
-      router.replace(redirectTo);
+      if (!user.role) {
+        router.replace('/select-role');
+      } else {
+        const redirectTo = user.role === 'recruiter' ? '/search' : '/upload';
+        router.replace(redirectTo);
+      }
     }
-  }, [isAuthenticated, user, router]);
+  }, [isAuthenticated, user, authLoading, router]);
 
-  if (isAuthenticated && user) {
+  if (authLoading || (isAuthenticated && user)) {
     return null;
   }
 
@@ -32,19 +39,26 @@ export default function LoginPage() {
     if (!email || !password) { setError('Please fill in all fields.'); return; }
     setLoading(true);
     try {
-      const success = await login(email, password);
-      if (success) {
-        const stored = localStorage.getItem('hs-user');
-        const userData = stored ? JSON.parse(stored) : null;
-        const redirectTo = userData?.role === 'recruiter' ? '/search' : '/upload';
-        router.replace(redirectTo);
+      const result = await login(email, password);
+      if (result.ok) {
+        // Session will update and useEffect will redirect
       } else {
-        setError('Invalid credentials. Please try again.');
+        setError(result.error || 'Invalid credentials. Please try again.');
       }
     } catch {
       setError('An error occurred. Please try again.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleGoogleLogin = async () => {
+    setGoogleLoading(true);
+    try {
+      await loginWithGoogle();
+    } catch {
+      setError('Google sign-in failed. Please try again.');
+      setGoogleLoading(false);
     }
   };
 
@@ -59,6 +73,31 @@ export default function LoginPage() {
               <p className="text-muted-custom">Sign in to access INSIGHT</p>
             </div>
             {error && (<Alert variant="danger" className="py-2 small" id="login-error">{error}</Alert>)}
+
+            {/* Google Sign In */}
+            <Button
+              onClick={handleGoogleLogin}
+              className="w-100 btn-google d-flex align-items-center justify-content-center gap-2 mb-3"
+              size="lg"
+              disabled={googleLoading}
+              id="login-google"
+            >
+              {googleLoading ? (
+                <span className="spinner-border spinner-border-sm" />
+              ) : (
+                <>
+                  <FcGoogle size={20} />
+                  Sign in with Google
+                </>
+              )}
+            </Button>
+
+            {/* Divider */}
+            <div className="auth-divider mb-3">
+              <span>or</span>
+            </div>
+
+            {/* Email/Password Form */}
             <Form onSubmit={handleSubmit} id="login-form">
               <Form.Group className="mb-3" controlId="login-email">
                 <Form.Label className="small fw-medium">Email address</Form.Label>

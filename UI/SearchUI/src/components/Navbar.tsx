@@ -9,13 +9,12 @@ import { Navbar as BsNavbar, Nav, Container, Button, Badge } from 'react-bootstr
 
 export default function Navbar() {
   const { theme, toggleTheme } = useTheme();
-  const { isAuthenticated, user, logout } = useAuth();
+  const { isAuthenticated, user, logout, loading } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
 
   const handleLogout = () => {
     logout();
-    router.push('/');
   };
 
   const dashboardPath = user?.role === 'recruiter' ? '/search' : '/upload';
@@ -79,24 +78,28 @@ export default function Navbar() {
               </span>
             </button>
 
-            {isAuthenticated ? (
+            {loading ? null : isAuthenticated ? (
               <div className="d-flex align-items-center gap-2">
                 <span className="user-greeting d-none d-md-inline d-flex align-items-center gap-2">
                   Hi, {user?.name}
-                  <Badge className="role-badge" bg="none">
-                    {roleLabel}
-                  </Badge>
+                  {user?.role && (
+                    <Badge className="role-badge" bg="none">
+                      {roleLabel}
+                    </Badge>
+                  )}
                 </span>
-                <Button
-                  id="dashboard-btn"
-                  variant="outline-primary"
-                  size="sm"
-                  onClick={() => router.push(dashboardPath)}
-                  className="d-flex align-items-center gap-1 btn-signup-nav d-lg-none"
-                >
-                  {user?.role === 'recruiter' ? <FiSearch size={14} /> : <FiUploadCloud size={14} />}
-                  Dashboard
-                </Button>
+                {user?.role && (
+                  <Button
+                    id="dashboard-btn"
+                    variant="outline-primary"
+                    size="sm"
+                    onClick={() => router.push(dashboardPath)}
+                    className="d-flex align-items-center gap-1 btn-signup-nav d-lg-none"
+                  >
+                    {user?.role === 'recruiter' ? <FiSearch size={14} /> : <FiUploadCloud size={14} />}
+                    Dashboard
+                  </Button>
+                )}
                 <Button
                   id="logout-btn"
                   variant="outline-danger"

@@ -11,12 +11,20 @@ interface ProtectedRouteProps {
 }
 
 export default function ProtectedRoute({ children, allowedRole }: ProtectedRouteProps) {
-  const { isAuthenticated, user } = useAuth();
+  const { isAuthenticated, user, loading, needsRoleSelection } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
+    if (loading) return;
+
     if (!isAuthenticated) {
       router.replace('/login');
+      return;
+    }
+
+    // If user needs to select a role first (Google OAuth first sign-in)
+    if (needsRoleSelection) {
+      router.replace('/select-role');
       return;
     }
 
@@ -25,10 +33,14 @@ export default function ProtectedRoute({ children, allowedRole }: ProtectedRoute
       const redirectTo = user?.role === 'recruiter' ? '/search' : '/upload';
       router.replace(redirectTo);
     }
-  }, [isAuthenticated, user, allowedRole, router]);
+  }, [isAuthenticated, user, allowedRole, loading, needsRoleSelection, router]);
 
   // Don't render children until auth checks pass
-  if (!isAuthenticated) {
+  if (loading || !isAuthenticated) {
+    return null;
+  }
+
+  if (needsRoleSelection) {
     return null;
   }
 
