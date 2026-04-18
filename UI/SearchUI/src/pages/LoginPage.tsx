@@ -9,12 +9,13 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const { login, isAuthenticated } = useAuth();
+  const { login, isAuthenticated, user } = useAuth();
   const navigate = useNavigate();
 
-  // If already logged in, redirect
-  if (isAuthenticated) {
-    return <Navigate to="/search" replace />;
+  // If already logged in, redirect based on role
+  if (isAuthenticated && user) {
+    const redirectTo = user.role === 'recruiter' ? '/search' : '/upload';
+    return <Navigate to={redirectTo} replace />;
   }
 
   const handleSubmit = async (e: FormEvent) => {
@@ -30,7 +31,12 @@ export default function LoginPage() {
     try {
       const success = await login(email, password);
       if (success) {
-        navigate('/search', { replace: true });
+        // After login, user state is set — read role from updated state
+        // Since setState is async, read from localStorage directly
+        const stored = localStorage.getItem('hs-user');
+        const userData = stored ? JSON.parse(stored) : null;
+        const redirectTo = userData?.role === 'recruiter' ? '/search' : '/upload';
+        navigate(redirectTo, { replace: true });
       } else {
         setError('Invalid credentials. Please try again.');
       }

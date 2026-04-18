@@ -1,8 +1,8 @@
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
-import { FiSun, FiMoon, FiSearch, FiLogOut, FiLogIn, FiUserPlus } from 'react-icons/fi';
-import { Navbar as BsNavbar, Nav, Container, Button } from 'react-bootstrap';
+import { FiSun, FiMoon, FiSearch, FiLogOut, FiLogIn, FiUserPlus, FiUploadCloud } from 'react-icons/fi';
+import { Navbar as BsNavbar, Nav, Container, Button, Badge } from 'react-bootstrap';
 
 export default function Navbar() {
   const { theme, toggleTheme } = useTheme();
@@ -14,6 +14,9 @@ export default function Navbar() {
     logout();
     navigate('/');
   };
+
+  const dashboardPath = user?.role === 'recruiter' ? '/search' : '/upload';
+  const roleLabel = user?.role === 'recruiter' ? 'Recruiter' : 'Job Seeker';
 
   return (
     <BsNavbar
@@ -38,13 +41,26 @@ export default function Navbar() {
             >
               Home
             </Nav.Link>
-            <Nav.Link
-              as={Link}
-              to="/search"
-              className={location.pathname === '/search' ? 'active' : ''}
-            >
-              Search
-            </Nav.Link>
+            {isAuthenticated && user?.role === 'recruiter' && (
+              <Nav.Link
+                as={Link}
+                to="/search"
+                className={location.pathname === '/search' ? 'active' : ''}
+              >
+                <FiSearch size={14} className="me-1" />
+                Search
+              </Nav.Link>
+            )}
+            {isAuthenticated && user?.role === 'user' && (
+              <Nav.Link
+                as={Link}
+                to="/upload"
+                className={location.pathname === '/upload' ? 'active' : ''}
+              >
+                <FiUploadCloud size={14} className="me-1" />
+                Upload Resume
+              </Nav.Link>
+            )}
           </Nav>
 
           <div className="d-flex align-items-center gap-3">
@@ -62,9 +78,22 @@ export default function Navbar() {
 
             {isAuthenticated ? (
               <div className="d-flex align-items-center gap-2">
-                <span className="user-greeting d-none d-md-inline">
+                <span className="user-greeting d-none d-md-inline d-flex align-items-center gap-2">
                   Hi, {user?.name}
+                  <Badge className="role-badge" bg="none">
+                    {roleLabel}
+                  </Badge>
                 </span>
+                <Button
+                  id="dashboard-btn"
+                  variant="outline-primary"
+                  size="sm"
+                  onClick={() => navigate(dashboardPath)}
+                  className="d-flex align-items-center gap-1 btn-signup-nav d-lg-none"
+                >
+                  {user?.role === 'recruiter' ? <FiSearch size={14} /> : <FiUploadCloud size={14} />}
+                  Dashboard
+                </Button>
                 <Button
                   id="logout-btn"
                   variant="outline-danger"
