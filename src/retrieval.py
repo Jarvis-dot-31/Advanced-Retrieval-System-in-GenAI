@@ -90,18 +90,38 @@ async def faiss_ann_search(query_vec: list, k: int = 100) -> list:
 
 async def neo4j_graph_retrieve(kg_entities: list, k: int = 100) -> list:
     if not neo4j_driver: return []
-    print(f"  [Graph] Searching for entities: {kg_entities}")
-    # Using Query 1 from Listing 6 simplified for the list of extracted skills
+    print(f"  [Graph] Searching for entities (multi-hop): {kg_entities}")
+    
+    # Multi-hop query:
+    # 1. Direct: Skill → Candidate (1-hop)
+    # 2. Similar skills: Skill → SIMILAR_TO → Skill → Candidate (2-hop)
     cypher = """
     UNWIND $skills AS skill_name
-    MATCH (sk:Skill)<-[:HAS_SKILL]-(c:Candidate)
+    
+    // Find matching skill nodes
+    MATCH (sk:Skill)
     WHERE toLower(sk.name) CONTAINS toLower(skill_name)
-    RETURN DISTINCT c.id AS id LIMIT $limit
+    
+    // 1-hop: Direct skill → candidate
+    OPTIONAL MATCH (sk)<-[:HAS_SKILL]-(direct:Candidate)
+    
+    // 2-hop: Similar skills → their candidates
+    OPTIONAL MATCH (sk)-[:SIMILAR_TO]->(related_skill:Skill)<-[:HAS_SKILL]-(indirect:Candidate)
+    
+    // Collect all unique candidates and their matched skills
+    WITH collect(DISTINCT {c: direct, matched: sk.name}) + collect(DISTINCT {c: indirect, matched: related_skill.name}) AS matches
+    UNWIND matches AS m
+    WITH m.c AS c, collect(DISTINCT m.matched) AS matched_skills
+    WHERE c IS NOT NULL
+    
+    // Fetch all skills for the candidate to return full skill set
+    MATCH (c)-[:HAS_SKILL]->(all_sk:Skill)
+    RETURN c.id AS id, matched_skills, collect(DISTINCT all_sk.name) AS all_skills LIMIT $limit
     """
     async with neo4j_driver.session() as session:
         result = await session.run(cypher, skills=kg_entities, limit=k)
         records = await result.data()
-        print(f"  [Graph] Found {len(records)} candidates via skill relationships.")
+        print(f"  [Graph] Found {len(records)} candidates via multi-hop skill relationships.")
         return records
 
 async def parallel_retrieve(query_text: str, query_vec: list, kg_entities: list, top_k: int = 100, channels: list=None, min_yoe: float = 0) -> dict:
