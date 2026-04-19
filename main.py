@@ -6,22 +6,47 @@ from src import config
 import json
 import re
 import openai
+from resume_parser import parse_resume
 import pickle
 from opensearchpy import OpenSearch
 from sentence_transformers import SentenceTransformer, CrossEncoder
-from fastapi import FastAPI
+from fastapi import FastAPI, UploadFile, File, HTTPException
 from pydantic import BaseModel
 import asyncio
 from typing import List
 from collections import defaultdict
 import math
+import csv
+import pdfplumber
+import uuid
+from io import BytesIO
+from fastapi.middleware.cors import CORSMiddleware
+import uvicorn
 
 app = FastAPI()
-import uvicorn
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 class SearchAPI(BaseModel):
     query: str
     k: int
+
+class CandidateModel(BaseModel):
+    id: str
+    name: str
+    core_skills: str
+    secondary_skills: str = ""
+    soft_skills: str = ""
+    years_of_experience: float
+    potential_roles: str
+    skill_summary: str
+    location: str = "Unknown"
+    projects: str = ""
 
 def clean_json_response(text: str) -> str:
     text = text.strip()
@@ -48,7 +73,20 @@ def skill_overlap_score(doc, query_entities: list) -> float:
         return 1.0
     text = (str(doc.get("core_skills", "")) + " " + str(doc.get("secondary_skills", ""))).lower()
     hits = sum(1 for e in query_entities if e.lower() in text)
-    return max(hits / len(query_entities), 0.1)  # floor at 0.1 so non-matches still appear but ranked low
+    return max(hits / len(query_entities), 0.1)  
+
+def parse_skills(skills_str):
+    if not skills_str:
+        return []
+    parts = [s.strip() for s in skills_str.split(",") if s.strip()]
+    result = []
+    for p in parts:
+        match = re.match(r'^(.+?)\s*\((\w[\w\s]*)\)\s*$', p)
+        if match:
+            result.append({"skill": match.group(1).strip(), "level": match.group(2).strip()})
+        else:
+            result.append({"skill": p.strip(), "level": "Competent"})
+    return result
 
 async def generate_reason(candidate: dict, query: str) -> str:
     profile_summary = (
@@ -202,7 +240,6 @@ async def search(req:SearchAPI):
     es_docs=[]
     faiss_docs=[]
     kg_docs = []
-    # Build entity-level should-boosts for OpenSearch
     entity_boosts = [{"match": {"core_skills": {"query": ent, "boost": 3}}} for ent in entities]
     entity_boosts += [{"match": {"secondary_skills": {"query": ent, "boost": 1.5}}} for ent in entities]
 
@@ -249,17 +286,16 @@ async def search(req:SearchAPI):
                     "id": doc_id,
                     "doc": hit["_source"],
                     "BM25score": hit["_score"],
-                    "rank": len(es_docs) + 1  # global rank across all rephrased queries
+                    "rank": len(es_docs) + 1  
                 })
     
     hyde_np = np.array([hyde_emb]).astype('float32')
-    faiss_fetch = max(50, k * 5)  # fetch more so we can filter by YOE
+    faiss_fetch = max(50, k * 5)  
     dist, ind = faiss_index.search(hyde_np, k=faiss_fetch)
     faiss_rank = 1
     for i in range(len(ind[0])):
         df_index = int(ind[0][i])
         doc_id = int(df.loc[df_index, "id"]) if df_index in df.index else df_index
-        # Filter by min years of experience
         row = df.loc[df["id"] == doc_id]
         if not row.empty and min_yoe > 0:
             yoe = row.iloc[0].get("years_of_experience", 0) or 0
@@ -310,7 +346,7 @@ async def search(req:SearchAPI):
         "es": 0.4,
         "kg": 0.25
     }
-    rrf_k = 60  # RRF smoothing constant (NOT the user's top-k)
+    rrf_k = 60  
 
     def best_rank_map(docs):
         best = {}
@@ -331,14 +367,17 @@ async def search(req:SearchAPI):
         if doc_id in faiss_best:
             rrf_scores[doc_id] += weights["faiss"] * (1.0 / (rrf_k + faiss_best[doc_id]))
         if doc_id in es_best:
-            overlap = skill_overlap_score(df.loc[df["id"] == int(doc_id)].iloc[0], entities)
+            matching = df.loc[df["id"] == int(doc_id)]
+            if not matching.empty:
+                overlap = skill_overlap_score(matching.iloc[0], entities)
+            else:
+                overlap = 1.0  
             rrf_scores[doc_id] += weights["es"] * (1.0 / (rrf_k + es_best[doc_id])) * overlap
         if doc_id in kg_best:
             rrf_scores[doc_id] += weights["kg"] * (1.0 / (rrf_k + kg_best[doc_id]))
 
     rrf_sorted = sorted(rrf_scores.items(), key=lambda x: x[1], reverse=True)
 
-    # --- Cross-encoder re-ranking on top 3*k candidates ---
     rerank_pool_size = min(k * 3, len(rrf_sorted))
     rerank_candidates = []
     for doc_id, rrf_score in rrf_sorted[:rerank_pool_size]:
@@ -354,7 +393,6 @@ async def search(req:SearchAPI):
         ce_scores = cross_encoder.predict(ce_pairs)
         for i, score in enumerate(ce_scores):
             rerank_candidates[i]["ce_score"] = float(score)
-        # Combine: weighted sum of normalised RRF + normalised CE
         max_rrf = max(c["rrf_score"] for c in rerank_candidates) or 1
         max_ce = max(c["ce_score"] for c in rerank_candidates) or 1
         min_ce = min(c["ce_score"] for c in rerank_candidates)
@@ -381,6 +419,81 @@ async def search(req:SearchAPI):
         final_results[i]["reason"] = reason
 
     return {"results": final_results, "rephrased_queries": rephrased_qu}
+
+@app.post("/add-candidate")
+async def add_candidate(resume: UploadFile = File(...)):
+    global df, faiss_index, order
+    
+    if not resume.filename.endswith(".pdf"):
+        raise HTTPException(status_code=400, detail="Only PDF files are allowed")
+    
+    try:
+        pdf_content = await resume.read()
+        text = ""
+        with pdfplumber.open(BytesIO(pdf_content)) as pdf_file:
+            for page in pdf_file.pages:
+                page_text = page.extract_text()
+                if page_text:
+                    text += page_text + "\n"
+        
+        if not text.strip():
+            raise HTTPException(status_code=400, detail="Could not extract text from PDF")
+
+        next_id = int(df["id"].max()) + 1
+        new_row = parse_resume(text, next_id=next_id)
+        print(f"[AddCandidate] Parsed: {new_row['name']} (ID: {new_row['id']})")
+
+        csv_path = "Dataset/profiles.csv"
+        pdf_row = pd.DataFrame([new_row])
+        pdf_row.to_csv(csv_path, mode='a', header=False, index=False, quoting=csv.QUOTE_ALL)
+
+        df = pd.concat([df, pdf_row], ignore_index=True)
+        new_idx = len(df) - 1
+        es.index(index=config.OPENSEARCH_INDEX, id=new_idx, body=new_row)
+        text_for_emb = new_row["skill_summary"] or f"{new_row['name']} {new_row['core_skills']}"
+        new_emb = model.encode([text_for_emb], normalize_embeddings=True).astype('float32')
+        faiss_index.add(new_emb)      
+        order.append(new_row)
+        with open("Vecdb_embeddings/docs.pickle", "wb") as f:
+            pickle.dump(order, f)
+        faiss.write_index(faiss_index, "Vecdb_embeddings/docs.index")
+
+        core_skills_parsed = parse_skills(new_row.get("core_skills", ""))
+        soft_skills_parsed = parse_skills(new_row.get("soft_skills", ""))
+        roles_list = [r.strip() for r in (new_row.get("potential_roles", "") or "").split(",") if r.strip()]
+
+        kg_cypher = """
+        MERGE (c:Candidate {id: $id})
+        SET c.name = $name, c.yoe = $yoe, c.embedding = $embedding
+        WITH c
+        UNWIND $core_skills AS skill_entry
+        MERGE (sk:Skill {name: skill_entry.skill})
+        MERGE (c)-[r:HAS_SKILL]->(sk)
+        SET r.level = skill_entry.level, r.category = 'core'
+        WITH c
+        UNWIND $roles AS role_title
+        MERGE (ro:Role {title: role_title})
+        MERGE (c)-[:SUITS_ROLE]->(ro)
+        WITH c
+        UNWIND $soft_skills AS soft_skill
+        MERGE (ss:SoftSkill {name: soft_skill.skill})
+        MERGE (c)-[:HAS_SOFT_SKILL]->(ss)
+        """
+        with driver.session() as session:
+            session.run(kg_cypher,
+                id=new_row["id"],
+                name=new_row.get("name", ""),
+                yoe=new_row.get("years_of_experience", 0),
+                embedding=new_emb[0].tolist(),
+                core_skills=core_skills_parsed,
+                roles=roles_list,
+                soft_skills=soft_skills_parsed)
+        print(f"[AddCandidate] Indexed into Neo4j graph")
+
+        return {"status": "success", "candidate_id": new_row["id"], "data": new_row}
+    except Exception as e:
+        print(f"Error adding candidate: {e}")
+        return {"status": "failure", "error": str(e)}
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8001)

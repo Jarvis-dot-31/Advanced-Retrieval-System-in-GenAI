@@ -7,5 +7,7 @@ neo4j
 openai
 numpy
 pandas
-pydantic        
+pydantic
 litellm
+pdfplumber
+requests
