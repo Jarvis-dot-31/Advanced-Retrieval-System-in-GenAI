@@ -10,34 +10,26 @@ import {
   Card,
   Badge,
   Accordion,
-  ProgressBar,
   Spinner,
 } from 'react-bootstrap';
 import {
   FiSearch,
-  FiSliders,
-  FiClock,
   FiDatabase,
-  FiTarget,
-  FiTrendingUp,
   FiInfo,
 } from 'react-icons/fi';
 import {
   type SearchResponse,
-  type RetrievalMode,
-  type SearchResult,
+  type CandidateSearchResult,
+  searchQuery,
 } from '../services/api';
-
-// Uncomment the line below when the backend is ready:
-// import { searchQuery } from '../services/api';
 
 export default function SearchPage() {
   const [query, setQuery] = useState('');
-  const [mode, setMode] = useState<RetrievalMode>('hybrid');
   const [topK, setTopK] = useState(5);
   const [loading, setLoading] = useState(false);
   const [response, setResponse] = useState<SearchResponse | null>(null);
   const [hasSearched, setHasSearched] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleSearch = async (e: FormEvent) => {
     e.preventDefault();
@@ -45,15 +37,15 @@ export default function SearchPage() {
 
     setLoading(true);
     setHasSearched(true);
+    setError(null);
 
     try {
-      // ── Replace with real API call when backend is ready ──
-      // const data = await searchQuery(query, mode, topK);
-      await new Promise((r) => setTimeout(r, 600)); // simulate latency
-      // No mock data — show empty results until backend is connected
-      setResponse(null);
+      const data = await searchQuery(query, topK);
+      setResponse(data);
     } catch (err) {
       console.error('Search failed:', err);
+      setResponse(null);
+      setError(err instanceof Error ? err.message : 'Search failed. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -78,7 +70,7 @@ export default function SearchPage() {
           <Card.Body className="p-3 p-md-4">
             <Form onSubmit={handleSearch}>
               <Row className="g-3 align-items-end">
-                <Col lg={6}>
+                <Col lg={8}>
                   <Form.Group controlId="search-query">
                     <Form.Label className="small fw-medium">Search Query</Form.Label>
                     <div className="input-icon-wrapper">
@@ -97,29 +89,13 @@ export default function SearchPage() {
                 </Col>
 
                 <Col sm={6} lg={2}>
-                  <Form.Group controlId="retrieval-mode">
-                    <Form.Label className="small fw-medium d-flex align-items-center gap-1">
-                      <FiSliders size={13} /> Mode
-                    </Form.Label>
-                    <Form.Select
-                      value={mode}
-                      onChange={(e) => setMode(e.target.value as RetrievalMode)}
-                    >
-                      <option value="intent_aware">Intent Aware</option>
-                      <option value="lexical">Lexical (BM25)</option>
-                      <option value="semantic">Semantic</option>
-                    </Form.Select>
-                  </Form.Group>
-                </Col>
-
-                <Col sm={6} lg={2}>
                   <Form.Group controlId="top-k-slider">
                     <Form.Label className="small fw-medium">
                       No. of results: <strong>{topK}</strong>
                     </Form.Label>
                     <Form.Range
                       min={1}
-                      max={20}
+                      max={5}
                       value={topK}
                       onChange={(e) => setTopK(Number(e.target.value))}
                     />
@@ -149,6 +125,15 @@ export default function SearchPage() {
           </Card.Body>
         </Card>
 
+        {/* ─── Error State ──────────────────────────────── */}
+        {!loading && error && (
+          <div className="text-center py-4">
+            <div className="alert alert-danger d-inline-flex align-items-center gap-2 px-4" role="alert">
+              <strong>Error:</strong> {error}
+            </div>
+          </div>
+        )}
+
         {/* ─── Results ────────────────────────────────────── */}
         {loading && (
           <div className="text-center py-5">
@@ -159,87 +144,18 @@ export default function SearchPage() {
 
         {!loading && response && (
           <Row className="g-4">
-            {/* ── Left: Results ──────────────────────── */}
-            <Col lg={8}>
-              {/* Intent Analysis */}
-              <Card className="intent-card border-0 shadow-sm mb-4" id="intent-panel">
-                <Card.Body className="p-3">
-                  <div className="d-flex align-items-center gap-2 mb-2">
-                    <FiTarget size={18} className="text-accent" />
-                    <strong>Intent Analysis</strong>
-                    <Badge bg="info" className="ms-auto">
-                      {Math.round(response.intent.confidence * 100)}% confidence
-                    </Badge>
-                  </div>
-                  <div className="intent-details">
-                    <div className="d-flex flex-wrap gap-3 small">
-                      <span>
-                        <strong>Intent:</strong>{' '}
-                        <Badge bg="secondary">{response.intent.detected_intent}</Badge>
-                      </span>
-                      <span>
-                        <strong>Original:</strong> {response.intent.original_query}
-                      </span>
-                    </div>
-                    <div className="mt-2 small">
-                      <strong>Expanded Query:</strong>{' '}
-                      <span className="text-muted-custom">{response.intent.expanded_query}</span>
-                    </div>
-                    {response.intent.entities.length > 0 && (
-                      <div className="mt-2 d-flex gap-1 flex-wrap">
-                        {response.intent.entities.map((e, i) => (
-                          <Badge key={i} bg="outline-accent" className="entity-badge">
-                            {e}
-                          </Badge>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </Card.Body>
-              </Card>
-
-              {/* Meta */}
+            <Col lg={12}>
               <div className="d-flex justify-content-between align-items-center mb-3 small text-muted-custom">
                 <span>
                   <FiDatabase size={14} className="me-1" />
-                  {response.total_results} total results
-                </span>
-                <span>
-                  <FiClock size={14} className="me-1" />
-                  {response.retrieval_time_ms}ms
+                  {response.length} candidates found
                 </span>
               </div>
-
-              {/* Result Cards */}
               <div className="results-list">
-                {response.results.map((result, index) => (
-                  <ResultCard key={result.id} result={result} index={index} />
+                {response.map((result, index) => (
+                  <ResultCard key={result.candidate.id} result={result} index={index} />
                 ))}
               </div>
-            </Col>
-
-            {/* ── Right: Metrics ─────────────────────── */}
-            <Col lg={4}>
-              <Card className="metrics-card border-0 shadow-sm sticky-top" id="metrics-panel" style={{ top: '80px' }}>
-                <Card.Body className="p-3">
-                  <div className="d-flex align-items-center gap-2 mb-3">
-                    <FiTrendingUp size={18} className="text-accent" />
-                    <strong>Retrieval Metrics</strong>
-                  </div>
-
-                  <MetricBar label="Precision@K" value={response.metrics.precision_at_k} />
-                  <MetricBar label="Recall@K" value={response.metrics.recall_at_k} />
-                  <MetricBar label="nDCG" value={response.metrics.ndcg} />
-                  <MetricBar label="MAP" value={response.metrics.map} />
-
-                  <hr />
-
-                  <div className="small text-muted-custom">
-                    <FiInfo size={13} className="me-1" />
-                    Metrics computed over the top-{topK} results using the <strong>{mode}</strong> retrieval mode.
-                  </div>
-                </Card.Body>
-              </Card>
             </Col>
           </Row>
         )}
@@ -254,7 +170,7 @@ export default function SearchPage() {
             <p className="text-muted-custom">
               We couldn't find any results for <strong>"{query}"</strong>.
               <br />
-              Try a different query or adjust the retrieval mode.
+              Try a different query or adjust the number of results.
             </p>
           </div>
         )}
@@ -278,28 +194,27 @@ export default function SearchPage() {
 
 /* ─── Sub-components ──────────────────────────────────────────────── */
 
-function ResultCard({ result, index }: { result: SearchResult; index: number }) {
-  const modeColors: Record<RetrievalMode, string> = {
-    lexical: 'warning',
-    semantic: 'info',
-    hybrid: 'success',
-  };
+function ResultCard({ result, index }: { result: CandidateSearchResult; index: number }) {
+  const candidate = result.candidate;
 
   return (
-    <Card className="result-card border-0 shadow-sm mb-3" id={`result-${result.id}`}>
+    <Card className="result-card border-0 shadow-sm mb-3" id={`result-${candidate.id}`}>
       <Card.Body className="p-3">
         <div className="d-flex justify-content-between align-items-start mb-2">
           <div className="d-flex align-items-center gap-2 flex-wrap">
             <span className="result-rank">#{index + 1}</span>
-            <h6 className="fw-semibold mb-0">{result.title}</h6>
+            <h6 className="fw-semibold mb-0">{candidate.name}</h6>
+            <Badge bg="secondary" className="ms-2">{candidate.years_of_experience} yrs exp</Badge>
           </div>
           <div className="d-flex gap-2 flex-shrink-0">
-            <Badge bg={modeColors[result.retrieval_method]}>{result.retrieval_method}</Badge>
-            <Badge bg="dark" className="score-badge">{result.score.toFixed(3)}</Badge>
+            <Badge bg="dark" className="score-badge">Score: {result.rank_score.toFixed(3)}</Badge>
           </div>
         </div>
 
-        <p className="small text-muted-custom mb-2">{result.snippet}</p>
+        <p className="small text-muted-custom mb-2">
+          <strong>Potential Roles:</strong> {candidate.potential_roles}
+        </p>
+        <p className="small mb-2">{candidate.skill_summary}</p>
 
         <Accordion flush>
           <Accordion.Item eventKey="0" className="explanation-accordion">
@@ -311,52 +226,23 @@ function ResultCard({ result, index }: { result: SearchResult; index: number }) 
             </Accordion.Header>
             <Accordion.Body className="small py-2">
               <div className="mb-2">
-                <strong>Reasoning:</strong> {result.explanation.reasoning}
+                <strong>Reasoning:</strong> {result.reason}
               </div>
               <div className="mb-2">
-                <strong>Semantic Score:</strong>{' '}
-                <Badge bg="info">{result.explanation.semantic_score.toFixed(2)}</Badge>
+                <strong>Core Skills:</strong> {candidate.core_skills}
               </div>
-              {result.explanation.keyword_matches.length > 0 && (
-                <div className="mb-2">
-                  <strong>Keyword Matches:</strong>{' '}
-                  {result.explanation.keyword_matches.map((kw, i) => (
-                    <Badge key={i} bg="secondary" className="me-1">
-                      {kw}
-                    </Badge>
-                  ))}
+              <div className="mb-2">
+                <strong>Secondary Skills:</strong> {candidate.secondary_skills}
+              </div>
+              {candidate.soft_skills && (
+                <div>
+                  <strong>Soft Skills:</strong> {candidate.soft_skills}
                 </div>
               )}
-              <div>
-                <strong>Graph Path:</strong>{' '}
-                <span className="text-muted-custom">
-                  {result.explanation.graph_path.join(' → ')}
-                </span>
-              </div>
             </Accordion.Body>
           </Accordion.Item>
         </Accordion>
       </Card.Body>
     </Card>
-  );
-}
-
-function MetricBar({ label, value }: { label: string; value: number }) {
-  const pct = Math.round(value * 100);
-  const variant = pct >= 90 ? 'success' : pct >= 75 ? 'info' : pct >= 60 ? 'warning' : 'danger';
-
-  return (
-    <div className="mb-3">
-      <div className="d-flex justify-content-between small mb-1">
-        <span className="fw-medium">{label}</span>
-        <span className="fw-bold">{pct}%</span>
-      </div>
-      <ProgressBar
-        now={pct}
-        variant={variant}
-        className="metric-progress"
-        style={{ height: 6 }}
-      />
-    </div>
   );
 }
