@@ -8,6 +8,6 @@ openai
 numpy
 pandas
 pydantic
-litellm
 pdfplumber
 requests
+python-multipart

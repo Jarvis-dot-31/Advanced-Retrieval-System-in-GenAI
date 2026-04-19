@@ -216,7 +216,7 @@ function ResultCard({ result, index }: { result: CandidateSearchResult; index: n
         </p>
         <p className="small mb-2">{candidate.skill_summary}</p>
 
-        <Accordion flush>
+        <Accordion className="mt-3">
           <Accordion.Item eventKey="0" className="explanation-accordion">
             <Accordion.Header>
               <span className="small d-flex align-items-center gap-1">

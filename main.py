@@ -10,6 +10,7 @@ from resume_parser import parse_resume
 import pickle
 from opensearchpy import OpenSearch
 from sentence_transformers import SentenceTransformer, CrossEncoder
+import torch
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from pydantic import BaseModel
 import asyncio
@@ -175,8 +176,11 @@ client = openai.AsyncOpenAI(
     api_key=config.OPENAI_API_KEY,
     base_url=config.OPENAI_BASE_URL
 )
-model = SentenceTransformer(config.SBERT_MODEL_NAME)
-cross_encoder = CrossEncoder(config.CROSS_ENCODER_MODEL_NAME)
+
+device = "cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu"
+print(f"Loading models on device: {device}")
+model = SentenceTransformer(config.SBERT_MODEL_NAME, device=device)
+cross_encoder = CrossEncoder(config.CROSS_ENCODER_MODEL_NAME, device=device)
 
 URL = "bolt://localhost:7687"
 AUTH = ("neo4j", "password123")

@@ -33,18 +33,23 @@ try:
     es.indices.create(index=config.OPENSEARCH_INDEX, body=mapping)
 except Exception as e:
     pass
-df=pd.read_csv("/home/pranab/dl_hackathon/Dataset/profiles.csv")
+df=pd.read_csv("Dataset/profiles.csv")
 df = df.where(pd.notnull(df), None)
 
 for i,row in df.iterrows():
+    try:
+        yoe = float(row["years_of_experience"]) if pd.notnull(row["years_of_experience"]) else 0.0
+    except:
+        yoe = 0.0
+        
     text={
-        "name": row["name"],
-        "core_skills": row["core_skills"],
-        "secondary_skills": row["secondary_skills"],
-        "years_of_experience": row["years_of_experience"],
-        "soft_skills":row["soft_skills"],
-        "potential_roles": row["potential_roles"],
-        "skill_summary": row["skill_summary"]
+        "name": str(row["name"]) if row["name"] else "",
+        "core_skills": str(row["core_skills"]) if row["core_skills"] else "",
+        "secondary_skills": str(row["secondary_skills"]) if row["secondary_skills"] else "",
+        "years_of_experience": yoe,
+        "soft_skills": str(row["soft_skills"]) if row["soft_skills"] else "",
+        "potential_roles": str(row["potential_roles"]) if row["potential_roles"] else "",
+        "skill_summary": str(row["skill_summary"]) if row["skill_summary"] else ""
     }
     es.index(index=config.OPENSEARCH_INDEX, id=i, body=text)
 
