@@ -1,4 +1,4 @@
-# 🏗️ INSIGHT — System Architecture Deep Dive
+# 🏗️ INSIGHT — Intent-Aware Neural Search with Integrated Graph and Hybrid Techniques
 
 > **Hybrid Retrieval System for Talent Discovery**
 > A production-grade FastAPI application that combines BM25 lexical search (OpenSearch), dense vector ANN search (FAISS HNSW), and multi-hop graph traversal (Neo4j) into a single unified pipeline with LLM-powered explainability and RAGAS-based evaluation.
