@@ -12,6 +12,18 @@ echo "🚀 Starting Advanced Retrieval System..."
 echo "📦 Starting Docker containers (OpenSearch & Neo4j)..."
 docker-compose up -d
 
+echo "⏳ Waiting for OpenSearch to be ready (port 9200)..."
+while ! curl -s http://localhost:9200 >/dev/null 2>&1; do
+    sleep 1
+done
+echo "✅ OpenSearch is ready."
+
+echo "⏳ Waiting for Neo4j to be ready (port 7474)..."
+while ! curl -s http://localhost:7474 >/dev/null 2>&1; do
+    sleep 1
+done
+echo "✅ Neo4j is ready."
+
 echo "🐍 Setting up Python Virtual Environment..."
 if [ ! -d ".venv" ]; then
     echo "Creating .venv..."
