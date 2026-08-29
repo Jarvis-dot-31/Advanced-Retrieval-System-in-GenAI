@@ -1,8 +1,7 @@
-version: '3'
 services:
   opensearch:
     image: opensearchproject/opensearch:latest
-    container_name: opensearch_hackathon
+    container_name: opensearch_container
     environment:
       - discovery.type=single-node
       - DISABLE_SECURITY_PLUGIN=true
@@ -11,7 +10,7 @@ services:
       
   neo4j:
     image: neo4j:latest
-    container_name: neo4j_hackathon
+    container_name: neo4j_container
     environment:
       - NEO4J_AUTH=neo4j/password123
     ports:

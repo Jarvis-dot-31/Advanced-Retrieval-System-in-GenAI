@@ -1,5 +1,12 @@
 #!/bin/bash
 
+# Exit on unexpected critical setup errors
+set -e
+
+# Store repository root directory
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$ROOT_DIR"
+
 echo "🚀 Starting Advanced Retrieval System..."
 
 echo "📦 Starting Docker containers (OpenSearch & Neo4j)..."
@@ -14,26 +21,79 @@ fi
 echo "Activating virtual environment..."
 source .venv/bin/activate
 
-echo "Installing dependencies..."
+echo "Installing Python dependencies..."
 pip install -r requirements.txt
+
+# 1. Vector Database / FAISS Embeddings Check
+if [ ! -f "Vecdb_embeddings/docs.index" ] || [ ! -f "Vecdb_embeddings/docs.pickle" ]; then
+    echo "🧠 Initializing Vector Database embeddings (Vecdb_embeddings)..."
+    python3 init_vec_db.py
+    echo "✅ Vector embeddings initialized."
+else
+    echo "✅ Vector embeddings already initialized."
+fi
+
+# 2. OpenSearch Ingestion
+echo "📥 Populating OpenSearch candidates index..."
+python3 init_opensearch.py
+echo "✅ OpenSearch indexed."
+
+# 3. Neo4j Knowledge Graph Check & Ingestion
+echo "🕸️ Checking Neo4j Knowledge Graph..."
+NEO4J_NEEDS_INIT=$(python3 -c "
+from neo4j import GraphDatabase
+from src import config
+try:
+    driver = GraphDatabase.driver(config.NEO4J_URI, auth=(config.NEO4J_USER, config.NEO4J_PASS))
+    with driver.session() as s:
+        res = s.run('MATCH (c:Candidate) RETURN count(c) as count').single()
+        if res and res['count'] > 0:
+            print('NO')
+        else:
+            print('YES')
+except Exception:
+    print('YES')
+" 2>/dev/null || echo "YES")
+
+if [ "$NEO4J_NEEDS_INIT" = "YES" ]; then
+    echo "🏗️ Initializing Neo4j Knowledge Graph schema and data..."
+    python3 init_graph_db.py
+    echo "✅ Knowledge Graph initialized."
+else
+    echo "✅ Knowledge Graph is already initialized."
+fi
+
+# 4. Frontend dependencies check
+echo "Installing frontend dependencies in UI/SearchUI (npm install)..."
+(cd UI/SearchUI && npm install)
+echo "✅ Frontend dependencies installed."
+
+# Disable exit on error for long running processes
+set +e
 
 echo "🐍 Starting FastAPI backend..."
 python3 main.py &
 BACKEND_PID=$!
 
 echo "⚛️  Starting Next.js frontend..."
-cd UI/SearchUI
-npm run dev &
+(cd UI/SearchUI && npm run dev) &
 FRONTEND_PID=$!
 
 # Function to gracefully stop the background processes
 cleanup() {
+    echo ""
     echo "🛑 Stopping services..."
-    kill $BACKEND_PID 2>/dev/null || true
-    kill $FRONTEND_PID 2>/dev/null || true
-    echo "✅ Services stopped. (Note: Docker containers remain running in the background. Use 'docker-compose stop' if you want to stop them as well)."
-    docker-compose stop
-    echo "Docker containers stopped."
+    if [ -n "$BACKEND_PID" ]; then
+        kill "$BACKEND_PID" 2>/dev/null || true
+    fi
+    if [ -n "$FRONTEND_PID" ]; then
+        pkill -P "$FRONTEND_PID" 2>/dev/null || true
+        kill "$FRONTEND_PID" 2>/dev/null || true
+    fi
+    echo "✅ Frontend and Backend stopped."
+    echo "🛑 Stopping Docker containers..."
+    (cd "$ROOT_DIR" && docker-compose stop)
+    echo "✅ Docker containers stopped."
     exit 0
 }
 
@@ -41,12 +101,12 @@ cleanup() {
 trap cleanup SIGINT SIGTERM
 
 echo "======================================================"
-echo "✨ All components are starting!"
+echo "✨ All components are running!"
 echo "🌐 Frontend will be available at: http://localhost:3000"
 echo "🔌 Backend will be available at:  http://localhost:8001"
 echo "======================================================"
-echo "Hit Ctrl+C to stop the frontend and backend servers."
+echo "Hit Ctrl+C to stop all services."
 
-# Wait for both background processes to keep the script running
-wait $BACKEND_PID
-wait $FRONTEND_PID
+# Wait for background processes to keep the script running
+wait $BACKEND_PID $FRONTEND_PID
+

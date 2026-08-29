@@ -6,7 +6,7 @@ host = config.OPENSEARCH_HOST
 port = config.OPENSEARCH_PORT
 auth = (config.OPENSEARCH_USER, config.OPENSEARCH_PASS)
 
-es = OpenSearch(
+open_search = OpenSearch(
     hosts = [{'host': host, 'port': port}],
     http_compress = True,
     http_auth = auth,
@@ -30,7 +30,7 @@ mapping={
 }
 
 try:
-    es.indices.create(index=config.OPENSEARCH_INDEX, body=mapping)
+    open_search.indices.create(index=config.OPENSEARCH_INDEX, body=mapping)
 except Exception as e:
     pass
 df=pd.read_csv("Dataset/profiles.csv")
@@ -51,10 +51,10 @@ for i,row in df.iterrows():
         "potential_roles": str(row["potential_roles"]) if row["potential_roles"] else "",
         "skill_summary": str(row["skill_summary"]) if row["skill_summary"] else ""
     }
-    es.index(index=config.OPENSEARCH_INDEX, id=i, body=text)
+    open_search.index(index=config.OPENSEARCH_INDEX, id=i, body=text)
 
 query="Python backend developer"
-res = es.search(
+res = open_search.search(
     index=config.OPENSEARCH_INDEX,
     body={
         "query": {

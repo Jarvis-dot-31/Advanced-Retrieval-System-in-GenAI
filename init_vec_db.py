@@ -3,6 +3,7 @@ from sentence_transformers import SentenceTransformer,CrossEncoder
 import numpy as np
 import faiss
 import pickle
+from os import makedirs
 
 df=pd.read_csv('Dataset/profiles.csv')
 for idx, val in df['name'].items():
@@ -24,19 +25,20 @@ emb=np.array(emb).astype('float32')
 index=faiss.IndexFlatL2(emb.shape[1])
 index.add(emb)
 
-with open("docs.pickle","wb") as f:
+makedirs("Vecdb_embeddings", exist_ok=True)
+with open("Vecdb_embeddings/docs.pickle","wb") as f:
   pickle.dump(docs,f)
-faiss.write_index(index,"docs.index")
+faiss.write_index(index,"Vecdb_embeddings/docs.index")
 
-query="Someone good at building cloud infrastructure"
+# query="Someone good at building cloud infrastructure"
 
-enc=model.encode([query])
-enc=np.array(enc).astype('float32')
-dist,ind=index.search(enc,k=5)
+# enc=model.encode([query])
+# enc=np.array(enc).astype('float32')
+# dist,ind=index.search(enc,k=5)
 
-for i in range(len(ind[0])):
-  print(f'Confidence: {dist[0][i]:.4f}')
-  print(f'Doc: {docs[ind[0][i]]}')
+# for i in range(len(ind[0])):
+#   print(f'Confidence: {dist[0][i]:.4f}')
+#   print(f'Doc: {docs[ind[0][i]]}')
 
 # Cross-Encoder
 # cand=[docs[i] for i in ind[0]]
