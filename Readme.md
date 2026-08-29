@@ -39,24 +39,24 @@
                    │  SSE Stream (text/event-stream)
                    ▼
 ┌──────────────────────────────────────────────────────────────────────┐
-│                     FastAPI Application (main.py)                     │
-│  ┌────────────┐  ┌──────────────┐  ┌──────────────┐  ┌───────────┐  │
-│  │   Intent    │→│  Multi-Query  │→│   Parallel    │→│  Ranking   │  │
-│  │ Classifier  │  │  Expansion   │  │  Retrieval   │  │  Pipeline  │  │
-│  └────────────┘  └──────────────┘  └──────┬───────┘  └─────┬─────┘  │
-│                                    ┌──────┼───────┐        │        │
-│                                    ▼      ▼       ▼        ▼        │
-│                              ┌─────┐ ┌─────┐ ┌─────┐  ┌────────┐   │
-│                              │BM25 │ │FAISS│ │Neo4j│  │Explain │   │
-│                              │     │ │HNSW │ │Graph│  │ (LLM)  │   │
-│                              └──┬──┘ └──┬──┘ └──┬──┘  └────────┘   │
-└─────────────────────────────────┼───────┼───────┼───────────────────┘
+│                     FastAPI Application (main.py)                    │
+│  ┌────────────┐  ┌──────────────┐  ┌──────────────┐  ┌───────────┐   │
+│  │   Intent   │→ │  Multi-Query │→ │   Parallel   │→ │  Ranking  │   │
+│  │ Classifier │  │  Expansion   │  │  Retrieval   │  │  Pipeline │   │
+│  └────────────┘  └──────────────┘  └──────┬───────┘  └─────┬─────┘   │
+│                                    ┌──────┼───────┐        │         │
+│                                    ▼      ▼       ▼        ▼         │
+│                              ┌─────┐ ┌─────┐ ┌─────┐  ┌────────┐     │
+│                              │BM25 │ │FAISS│ │Neo4j│  │Explain │     │
+│                              │     │ │HNSW │ │Graph│  │ (LLM)  │     │
+│                              └──┬──┘ └──┬──┘ └──┬──┘  └────────┘     │
+└─────────────────────────────────┼───────┼───────┼────────────────────┘
                                   ▼       ▼       ▼
-                       ┌──────────────────────────────────────┐
+                       ┌───────────────────────────────────────┐
                        │        Storage / Index Layer          │
                        │  OpenSearch │ FAISS File │ Neo4j Bolt │
                        │  :9200      │ .faiss     │ :7687      │
-                       └──────────────────────────────────────┘
+                       └───────────────────────────────────────┘
                                        │
                                   ┌────┴────┐
                                   │  Ollama │  (llama3, local LLM)
@@ -86,17 +86,16 @@
 ## 3. Project Structure
 
 ```
-hackathon/
+Advanced-Retrieval-System-in-GenAI/
 ├── main.py                    # FastAPI app — all endpoints, SSE streaming, orchestration
-├── ingest_pipeline.py         # Batch ingestion: CSV → OpenSearch + FAISS + Neo4j
-├── cleanup_dbs.py             # DB cleanup utility
+├── init_vec_db.py             # Initialize FAISS vector index from Dataset/profiles.csv
+├── init_opensearch.py         # Initialize OpenSearch index from Dataset/profiles.csv
+├── init_graph_db.py           # Initialize Neo4j graph and build similarity edges
 ├── docker-compose.yml         # OpenSearch + Neo4j containers
-├── data.csv                   # Source dataset (~1700 candidates)
-├── candidates_index.faiss     # Pre-built FAISS HNSW index (3.2 MB)
-├── id_map.json                # FAISS position → candidate ID mapping
-├── email_map.json             # Email → candidate ID mapping (resume uploads)
-├── schema_extensions.json     # Dynamic column definitions (location, projects)
-├── serve.html                 # Legacy static HTML search page
+├── Dataset/
+│   └── profiles.csv           # Source dataset (~1700 candidates)
+├── Vecdb_embeddings/
+│   └── docs.index             # FAISS vector index (flat L2 distance)
 ├── requirements.txt           # Python dependencies
 │
 ├── src/
@@ -136,14 +135,14 @@ Defined in `docker-compose.yml`:
 
 ```yaml
 opensearch:
-  image: opensearchproject/opensearch:latest
-  ports: 9200:9200
-  env: discovery.type=single-node, DISABLE_SECURITY_PLUGIN=true
+    image: opensearchproject/opensearch:latest
+    ports: 9200:9200
+    env: discovery.type=single-node, DISABLE_SECURITY_PLUGIN=true
 
 neo4j:
-  image: neo4j:latest
-  ports: 7474 (HTTP), 7687 (Bolt)
-  auth: neo4j/password123
+    image: neo4j:latest
+    ports: 7474 (HTTP), 7687 (Bolt)
+    auth: neo4j/password123
 ```
 
 ### Additional Services (External)
@@ -157,38 +156,46 @@ neo4j:
 
 ## 5. Data Ingestion Pipeline
 
-**File: `ingest_pipeline.py`**
+This project uses three separate initialization scripts to populate the three search backends:
 
-This is the batch data loading path — run once to initialize all three backends from `data.csv`.
+**Files: `init_vec_db.py`, `init_opensearch.py`, `init_graph_db.py`**
+
+Run these scripts once to initialize all three backends from `Dataset/profiles.csv`:
 
 ```
-┌─────────┐     ┌──────────────┐     ┌───────────────┐
-│ data.csv │────▶│ build_document│────▶│  embed_document│
-│ (~1700)  │     │ (preprocess) │     │  (SBERT 384d) │
-└─────────┘     └──────┬───────┘     └───────┬───────┘
-                       │                     │
-              ┌────────┼─────────────────────┼────────────┐
-              ▼        ▼                     ▼            ▼
-        ┌──────────┐ ┌────────────┐   ┌──────────┐  ┌─────────┐
-        │OpenSearch │ │ FAISS HNSW │   │  Neo4j   │  │id_map   │
-        │bulk_index│ │  .add()    │   │ ingest + │  │ .json   │
-        │(200/batch)│ │            │   │ edges    │  │         │
-        └──────────┘ └────────────┘   └──────────┘  └─────────┘
+┌────────────────────┐     ┌────────────────┐     ┌─────────────────┐
+│ Dataset/           │────▶│ build_document │────▶│  embed_document │
+│ profiles.csv       │     │ (preprocess)   │     │  (SBERT 384d)   │
+│ (~1700 candidates) │     └──────┬─────────┘     └───────┬─────────┘
+└────────────────────┘            │                       │
+              ┌───────────────────┼───────────────────────┼───────────┐
+              ▼                   ▼                       ▼           ▼
+    ┌──────────────────┐  ┌────────────────┐   ┌───────────────┐  ┌──────────────────┐
+    │  init_vec_db.py  │  │init_opensearch │   │ init_graph_db │  │ Vecdb_embeddings |
+    │ → FAISS Index    │  │ → OpenSearch   │   │  → Neo4j      │  │ /docs.index      │
+    └──────────────────┘  └────────────────┘   └───────────────┘  └──────────────────┘
 ```
 
-### Step-by-Step:
+### Step-by-Step Initialization:
 
-1. **Load CSV** — `pd.read_csv("data.csv").fillna("")`
-2. **Preprocess** — For each row, `build_document(row)` in `preprocessing.py`:
-   - Parses skill strings: `"Python (Expert), SQL (Competent)"` → `[{"skill":"Python","level":5}, {"skill":"SQL","level":3}]`
-   - Extracts flat BM25 text fields + nested parsed structures
-   - Maps proficiency: `Beginner=1, Advanced Beginner=2, Competent=3, Proficient=4, Expert=5`
-3. **OpenSearch** — Recreates index with custom mapping, bulk indexes via `helpers.bulk()` (200 docs/batch)
-4. **FAISS** — Creates `IndexHNSWFlat(384, 32)` with `efConstruction=128, efSearch=128`, adds all vectors
-5. **Neo4j** — Calls `kg_builder.ingest_candidate()` per doc (Cypher MERGE), then:
-   - `build_skill_similarity_edges()` — pairwise SBERT cosine ≥ 0.75 → `SIMILAR_TO` edges between Skills
-   - `build_candidate_similarity_edges()` — cosine ≥ 0.85 → `SIMILAR_TO` edges between Candidates
-6. **Persist** — Writes `candidates_index.faiss` + `id_map.json` to disk
+**1. Init FAISS Vector DB** — `python init_vec_db.py`
+
+- Loads `Dataset/profiles.csv`
+- Encodes skill_summary using SBERT (all-MiniLM-L6-v2, 384-dim)
+- Creates `IndexFlatL2(384)` and saves to `Vecdb_embeddings/docs.index`
+
+**2. Init OpenSearch** — `python init_opensearch.py`
+
+- Loads `Dataset/profiles.csv`
+- Creates index with mappings for: name, core_skills, secondary_skills, soft_skills, potential_roles, skill_summary, years_of_experience
+- Bulk indexes all candidates (200 docs/batch)
+
+**3. Init Neo4j Graph** — `python init_graph_db.py`
+
+- Loads `Dataset/profiles.csv`
+- For each candidate, calls `kg_builder.ingest_candidate()` (Cypher MERGE)
+- Builds skill similarity edges: pairwise SBERT cosine ≥ 0.75 → `SIMILAR_TO` edges between Skills
+- Builds candidate similarity edges: cosine ≥ 0.85 → `SIMILAR_TO` edges between Candidates
 
 ---
 
@@ -214,7 +221,7 @@ User Query: "Looking for a Python developer with 5+ years and AWS experience"
 │ STEP 2: QUERY EXPANSION  (intent.py → expand_query)             │
 │                                                                 │
 │  A. LLM Multi-Query Rephrasing (Ollama llama3):                 │
-│     → 3 rephrased queries (up to 2 attempts, temp 0.3 → 0.1)   │
+│     → 3 rephrased queries (up to 2 attempts, temp 0.3 → 0.1)    │
 │     → Extracted entities: ["Python", "AWS"]                     │
 │     → Detected min_yoe: 5                                       │
 │                                                                 │
@@ -240,10 +247,10 @@ User Query: "Looking for a Python developer with 5+ years and AWS experience"
 │                                                                 │
 │  For EACH expanded query (4 total):                             │
 │    ┌───────────────────────────────────────────┐                │
-│    │ ╔═══════════╗  ╔═══════╗  ╔═══════════╗  │                │
-│    │ ║  BM25     ║  ║ FAISS ║  ║  Neo4j    ║  │  ← PARALLEL   │
-│    │ ║ OpenSearch║  ║ HNSW  ║  ║  Cypher   ║  │    asyncio     │
-│    │ ╚═══════════╝  ╚═══════╝  ╚═══════════╝  │                │
+│    │ ╔═══════════╗  ╔═══════╗  ╔═══════════╗  │                 │
+│    │ ║  BM25     ║  ║ FAISS ║  ║  Neo4j    ║  │  ← PARALLEL     │
+│    │ ║ OpenSearch║  ║ HNSW  ║  ║  Cypher   ║  │    asyncio      │
+│    │ ╚═══════════╝  ╚═══════╝  ╚═══════════╝  │                 │
 │    └───────────────────────────────────────────┘                │
 │    → Fuse via Reciprocal Rank Fusion (RRF)                      │
 │                                                                 │
@@ -258,14 +265,14 @@ User Query: "Looking for a Python developer with 5+ years and AWS experience"
 │                                                                 │
 │  A. Cross-Encoder Reranking (top 50):                           │
 │     → (query, skill_summary) pairs scored by ms-marco model     │
-│     → Combined = 0.2 × normalized_RRF + 0.8 × xenc_score       │
+│     → Combined = 0.2 × normalized_RRF + 0.8 × xenc_score        │
 │                                                                 │
 │  B. Hydration from OpenSearch:                                  │
 │     → mget() to fetch full candidate documents                  │
 │     → Merges ranking scores with full profile fields            │
 │                                                                 │
 │  C. Proficiency Boost/Penalty:                                  │
-│     → Checks parsed skill fields for level ≥ 2 matches         │
+│     → Checks parsed skill fields for level ≥ 2 matches          │
 │     → +20 × coverage + avg_proficiency bonus                    │
 │     → No match anywhere → -25 penalty                           │
 │                                                                 │
@@ -276,12 +283,12 @@ User Query: "Looking for a Python developer with 5+ years and AWS experience"
 └───────────────────────┬─────────────────────────────────────────┘
                         ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│ STEP 5: EXPLANATION GENERATION  (explainability.py)              │
+│ STEP 5: EXPLANATION GENERATION  (explainability.py)             │
 │                                                                 │
 │  For top 5 candidates (parallelized via asyncio.create_task):   │
 │    → LLM prompt with grounding rules                            │
 │    → Uses candidate skills, YOE, roles as context               │
-│    → Generates ≤60 word professional explanation                 │
+│    → Generates ≤60 word professional explanation                │
 │    → Mentions strengths + gaps                                  │
 │                                                                 │
 │  Remaining candidates get placeholder text                      │
@@ -339,11 +346,11 @@ This is the most complex preprocessing step. It returns a dict with 4 keys:
 
 - Removes stopwords from query
 - Expands vague terms via mappings:
-  ```
-  "cloud"    → ["AWS", "Azure", "GCP", "Docker", "Kubernetes"]
-  "frontend" → ["HTML", "CSS", "JavaScript", "React", "Angular", "Vue"]
-  "devops"   → ["Docker", "Kubernetes", "Jenkins", "Terraform", "CI/CD"]
-  ```
+    ```
+    "cloud"    → ["AWS", "Azure", "GCP", "Docker", "Kubernetes"]
+    "frontend" → ["HTML", "CSS", "JavaScript", "React", "Angular", "Vue"]
+    "devops"   → ["Docker", "Kubernetes", "Jenkins", "Terraform", "CI/CD"]
+    ```
 - Merged with LLM-extracted entities → `skill_synonyms`
 
 #### D. YOE Extraction
@@ -478,15 +485,15 @@ Phase 2 — Raw Text Fallback:
   If no structured match: search raw string fields for any queried skill
 
 Phase 3 — Score Adjustment:
-  ┌────────────────────────────────────────────────────────┐
-  │ Condition                        │ Score Change        │
-  ├────────────────────────────────────────────────────────┤
-  │ No match anywhere                │ base - 25.0         │
-  │ Beginner-only match (level 1)    │ base + 1.0          │
-  │ Raw text match only              │ base + 2.0          │
-  │ Structured match (level ≥ 2)     │ base + 20×coverage  │
-  │                                  │      + min(avg×0.6,3)│
-  └────────────────────────────────────────────────────────┘
+  ┌──────────────────────────────────────────────────────────┐
+  │ Condition                        │ Score Change          │
+  ├──────────────────────────────────────────────────────────┤
+  │ No match anywhere                │ base - 25.0           │
+  │ Beginner-only match (level 1)    │ base + 1.0            │
+  │ Raw text match only              │ base + 2.0            │
+  │ Structured match (level ≥ 2)     │ base + 20×coverage    │
+  │                                  │      + min(avg×0.6,3) │
+  └──────────────────────────────────────────────────────────┘
 
   coverage = |matched_entities| / |queried_skills|
   → 100% skill coverage = +20 boost, 50% = +10
@@ -557,14 +564,14 @@ Config: `temperature=0.1, max_tokens=250, timeout=30s`
 ### Node Types
 
 ```
-┌──────────────┐     ┌──────────────┐     ┌──────────────┐     ┌──────────────┐
-│  :Candidate  │     │    :Skill     │     │    :Role     │     │  :SoftSkill  │
-│  ─────────── │     │  ──────────  │     │  ──────────  │     │  ──────────  │
-│  id (UNIQUE) │     │  name (UNIQUE)│     │ title (UNIQUE)│     │ name (UNIQUE)│
-│  name        │     │              │     │              │     │              │
-│  yoe         │     │              │     │              │     │              │
-│  embedding[] │     │              │     │              │     │              │
-└──────────────┘     └──────────────┘     └──────────────┘     └──────────────┘
+┌──────────────┐     ┌───────────────┐     ┌────────────────┐     ┌───────────────┐
+│  :Candidate  │     │    :Skill     │     │      :Role     │     │  :SoftSkill   │
+│──────────────│     │───────────────│     │────────────────│     │  ──────────   │
+│  id (UNIQUE) │     │ name (UNIQUE) │     │ title (UNIQUE) │     │ name (UNIQUE) │
+│  name        │     │               │     │                │     │               │
+│  yoe         │     │               │     │                │     │               │
+│  embedding[] │     │               │     │                │     │               │
+└──────────────┘     └───────────────┘     └────────────────┘     └───────────────┘
 ```
 
 ### Relationship Types
@@ -625,35 +632,35 @@ The schema manager allows adding new fields at runtime without code changes.
 schema_extensions.json
     │
     ▼
-┌──────────────────┐
-│  SchemaManager    │
-│  ──────────────── │
-│  • add_column()   │──→ Registers field in JSON
-│  • apply_opensearch()│──→ PUT /_mapping on OpenSearch
-│  • patch_build_document() │──→ Monkey-patches preprocessing.py
-│  • bulk_backfill() │──→ update_by_query (OS) + SET (Neo4j)
-│  • single_candidate_backfill() │──→ Partial update for one candidate
-└──────────────────┘
+┌──────────────────────────────────────────────────────────────────────┐
+│  SchemaManager                                                       │
+│  ────────────────                                                    │
+│  • add_column()   ──→ Registers field in JSON                        |
+│  • apply_opensearch()──→ PUT /_mapping on OpenSearch                 |
+│  • patch_build_document() ──→ Monkey-patches preprocessing.py        |
+│  • bulk_backfill() ──→ update_by_query (OS) + SET (Neo4j)            |
+│  • single_candidate_backfill() ──→ Partial update for one candidate  |
+└──────────────────────────────────────────────────────────────────────┘
 ```
 
 ### Column Config Format
 
 ```json
 [
-  {
-    "name": "location",
-    "csv_column": "location",
-    "os_type": "keyword",
-    "default": "Unknown",
-    "semantic": false // NOT appended to FAISS embedding
-  },
-  {
-    "name": "projects",
-    "csv_column": "projects",
-    "os_type": "text",
-    "default": "",
-    "semantic": true // APPENDED to skill_summary for FAISS
-  }
+    {
+        "name": "location",
+        "csv_column": "location",
+        "os_type": "keyword",
+        "default": "Unknown",
+        "semantic": false // NOT appended to FAISS embedding
+    },
+    {
+        "name": "projects",
+        "csv_column": "projects",
+        "os_type": "text",
+        "default": "",
+        "semantic": true // APPENDED to skill_summary for FAISS
+    }
 ]
 ```
 
@@ -693,7 +700,7 @@ The patched function:
 ┌──────────┐      ┌───────────┐      ┌─────────────┐      ┌──────────┐
 │  Upload  │─────▶│  PyMuPDF  │─────▶│   Ollama    │─────▶│  Clean   │
 │  PDF     │      │  Extract  │      │  llama3     │      │  & Norm  │
-└──────────┘      └───────────┘      └─────────────┘      └────┬─────┘
+└──────────┘      └───────────┘      └─────────────┘      └─────┬────┘
                                                                 │
                      ┌──────────────────────────────────────────┘
                      ▼
@@ -707,7 +714,7 @@ The patched function:
     │  5. embed      → "SBERT embedding generated (384d)"        │
     │  6. opensearch → "Document indexed with ID R-XXXXXXXX"     │
     │  7. faiss      → "Vector added (index size: N)"            │
-    │  8. neo4j      → "Created Candidate + N HAS_SKILL edges"  │
+    │  8. neo4j      → "Created Candidate + N HAS_SKILL edges"   │
     │  9. csv        → "Row appended for John Doe"               │
     │  10. done      → {success: true, candidate_id}             │
     └────────────────────────────────────────────────────────────┘
@@ -772,13 +779,13 @@ Query → classify_intent → expand_query → multi_query_retrieve_and_fuse (to
   │                                              Slice to top 8 for RAGAS
   │                                                                ↓
   │                              ┌─────────────────────────────────────────┐
-  ├─ Ranking Metrics:            │  Compare retrieved IDs vs GT IDs       │
-  │  NDCG@10, MRR, Recall       │  position-aware ranking comparisons    │
+  ├─ Ranking Metrics:            │  Compare retrieved IDs vs GT IDs        │
+  │  NDCG@10, MRR, Recall        │  position-aware ranking comparisons     │
   │                              └─────────────────────────────────────────┘
   │                              ┌─────────────────────────────────────────┐
-  ├─ RAGAS Metrics:              │  Build Dataset(question, answer,       │
-  │  Faithfulness, Relevancy,    │  contexts, ground_truth) → evaluate()  │
-  │  Context Precision/Recall    │  Uses local Ollama + SBERT             │
+  ├─ RAGAS Metrics:              │  Build Dataset(question, answer,        │
+  │  Faithfulness, Relevancy,    │  contexts, ground_truth) → evaluate()   │
+  │  Context Precision/Recall    │  Uses local Ollama + SBERT              │
   │                              └─────────────────────────────────────────┘
   │
   └─ Generate eval_report.md (if --report flag)
@@ -865,28 +872,32 @@ id, name, core_skills, secondary_skills, soft_skills, years_of_experience, poten
 
 ```json
 {
-  "skill_summary": { "type": "text", "analyzer": "skill_analyzer" },
-  "skill_summary_vec": {
-    "type": "knn_vector",
-    "dimension": 384,
-    "method": "hnsw"
-  },
-  "core_skills": { "type": "text", "analyzer": "skill_analyzer", "boost": 2.0 },
-  "core_skills_parsed": {
-    "type": "nested",
-    "properties": { "skill": "keyword", "level": "integer" }
-  },
-  "potential_roles": {
-    "type": "text",
-    "analyzer": "skill_analyzer",
-    "boost": 1.5
-  },
-  "potential_roles_vec": {
-    "type": "knn_vector",
-    "dimension": 384,
-    "method": "hnsw"
-  },
-  "years_of_experience": { "type": "float" }
+    "skill_summary": { "type": "text", "analyzer": "skill_analyzer" },
+    "skill_summary_vec": {
+        "type": "knn_vector",
+        "dimension": 384,
+        "method": "hnsw"
+    },
+    "core_skills": {
+        "type": "text",
+        "analyzer": "skill_analyzer",
+        "boost": 2.0
+    },
+    "core_skills_parsed": {
+        "type": "nested",
+        "properties": { "skill": "keyword", "level": "integer" }
+    },
+    "potential_roles": {
+        "type": "text",
+        "analyzer": "skill_analyzer",
+        "boost": 1.5
+    },
+    "potential_roles_vec": {
+        "type": "knn_vector",
+        "dimension": 384,
+        "method": "hnsw"
+    },
+    "years_of_experience": { "type": "float" }
 }
 ```
 
@@ -1003,7 +1014,7 @@ OPENSEARCH_PORT  = 9200            # env: OPENSEARCH_PORT
 OPENSEARCH_INDEX = "candidates"
 
 # FAISS
-FAISS_INDEX_PATH = "candidates_index.faiss"  # env: FAISS_INDEX_PATH
+FAISS_INDEX_PATH = "Vecdb_embeddings/docs.index"  # env: FAISS_INDEX_PATH
 FAISS_DIMENSION  = 384
 
 # Neo4j
@@ -1061,50 +1072,48 @@ Every search generates a trace JSON at `traces/trace_YYYYMMDD_HHMMSS.json`:
               ┌───────────────────▼────────────────────┐
               │     For Each Query (4) + HyDE (1):     │
               │                                        │
-              │   ┌─────┐  ┌───────┐  ┌────────┐     │
-              │   │BM25 │  │ FAISS │  │ Neo4j  │     │  ← asyncio.gather
-              │   │     │  │ HNSW  │  │ Graph  │     │
-              │   └──┬──┘  └───┬───┘  └───┬────┘     │
-              │      └─────────┼──────────┘           │
+              │   ┌─────┐  ┌───────┐  ┌────────┐       │
+              │   │BM25 │  │ FAISS │  │ Neo4j  │       │  ← asyncio.gather
+              │   │     │  │ HNSW  │  │ Graph  │       │
+              │   └──┬──┘  └───┬───┘  └───┬────┘       │
+              │      └─────────┼──────────┘            │
               │                ▼                       │
               │       RRF Fusion (per query)           │
               └───────────────┬────────────────────────┘
                               │
                     ┌─────────▼─────────┐
-                    │  RRF Fusion (all)  │  ← 2-level cascade
+                    │  RRF Fusion (all) │  ← 2-level cascade
                     └─────────┬─────────┘
                               │
                     ┌─────────▼─────────┐
-                    │  Cross-Encoder     │  ← top 50, ms-marco model
-                    │  Reranking         │
+                    │  Cross-Encoder    │  ← top 50, ms-marco model
+                    │  Reranking        │
                     └─────────┬─────────┘
                               │
                     ┌─────────▼─────────┐
-                    │  OpenSearch        │  ← mget() hydration
-                    │  Hydration         │
+                    │  OpenSearch       │  ← mget() hydration
+                    │  Hydration        │
                     └─────────┬─────────┘
                               │
-                    ┌─────────▼─────────┐
+                    ┌─────────▼──────────┐
                     │  Proficiency Boost │  ← skill coverage + level scoring
                     │  + YOE Penalty     │
-                    └─────────┬─────────┘
+                    └─────────┬──────────┘
                               │
-                    ┌─────────▼─────────┐
+                    ┌─────────▼──────────┐
                     │  Final Sort &      │  ← top_k slice
                     │  top_k Selection   │
-                    └─────────┬─────────┘
+                    └─────────┬──────────┘
                               │
-                    ┌─────────▼─────────┐
+                    ┌─────────▼──────────┐
                     │  LLM Explanation   │  ← top 5 in parallel
                     │  Generation        │
-                    └─────────┬─────────┘
+                    └─────────┬──────────┘
                               │
-                    ┌─────────▼─────────┐
+                    ┌─────────▼──────────┐
                     │  SSE Stream to     │  ← intent → retrieval → candidates → done
                     │  Client            │
-                    └───────────────────┘
+                    └────────────────────┘
 ```
 
 ---
-
-_Generated on: 2026-04-19 | Covers all 12 source modules across `src/`, `main.py`, and `ingest_pipeline.py`_
