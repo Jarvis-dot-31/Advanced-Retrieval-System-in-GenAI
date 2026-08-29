@@ -37,7 +37,7 @@ echo "Installing Python dependencies..."
 pip install -r requirements.txt
 
 # 1. Vector Database / FAISS Embeddings Check
-if [ ! -f "Vecdb_embeddings/docs.index" ] || [ ! -f "Vecdb_embeddings/docs.pickle" ]; then
+if [ ! -f "Vecdb_embeddings/docs.index" ]; then
     echo "🧠 Initializing Vector Database embeddings (Vecdb_embeddings)..."
     python3 init_vec_db.py
     echo "✅ Vector embeddings initialized."

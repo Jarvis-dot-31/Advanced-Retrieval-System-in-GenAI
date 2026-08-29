@@ -7,7 +7,6 @@ import json
 import re
 import openai
 from resume_parser import parse_resume
-import pickle
 from opensearchpy import OpenSearch
 from sentence_transformers import SentenceTransformer, CrossEncoder
 import torch
@@ -186,9 +185,7 @@ URL = "bolt://localhost:7687"
 AUTH = ("neo4j", "password123")
 driver = GraphDatabase.driver(URL, auth=AUTH)
 
-faiss_index=faiss.read_index("Vecdb_embeddings/docs.index")
-with open("Vecdb_embeddings/docs.pickle", "rb") as f:
-    order=pickle.load(f)
+faiss_index = faiss.read_index("Vecdb_embeddings/docs.index")
 
 host = config.OPENSEARCH_HOST
 port = config.OPENSEARCH_PORT
@@ -284,7 +281,7 @@ async def search(req:SearchAPI):
                 continue
         faiss_docs.append({
             "id": doc_id,
-            "doc": order[ind[0][i]],
+            "doc": row.to_dict("records")[0] if not row.empty else {},
             "distance": dist[0][i],
             "rank": faiss_rank
         })
@@ -401,7 +398,7 @@ async def search(req:SearchAPI):
 
 @app.post("/add-candidate")
 async def add_candidate(resume: UploadFile = File(...)):
-    global df, faiss_index, order
+    global df, faiss_index
     
     if not resume.filename.endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Only PDF files are allowed")
@@ -431,10 +428,7 @@ async def add_candidate(resume: UploadFile = File(...)):
         es.index(index=config.OPENSEARCH_INDEX, id=new_idx, body=new_row)
         text_for_emb = new_row["skill_summary"] or f"{new_row['name']} {new_row['core_skills']}"
         new_emb = model.encode([text_for_emb], normalize_embeddings=True).astype('float32')
-        faiss_index.add(new_emb)      
-        order.append(new_row)
-        with open("Vecdb_embeddings/docs.pickle", "wb") as f:
-            pickle.dump(order, f)
+        faiss_index.add(new_emb)
         faiss.write_index(faiss_index, "Vecdb_embeddings/docs.index")
 
         core_skills_parsed = parse_skills(new_row.get("core_skills", ""))
