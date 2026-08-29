@@ -1,5 +1,5 @@
 // ─── API Configuration ───────────────────────────────────────────────
-export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://10.153.78.58:8001';
+export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001';
 
 // ─── Resume Upload API (placeholder — replace with real endpoint) ────
 export const RESUME_UPLOAD_API_URL = API_BASE_URL + '/add-candidate';
@@ -68,34 +68,6 @@ export async function searchQuery(
   return res as SearchResponse;
 }
 
-// export async function getIntentAnalysis(query: string): Promise<IntentAnalysis> {
-//   const response = await fetch(`${API_BASE_URL}/api/intent`, {
-//     method: 'POST',
-//     headers: { 'Content-Type': 'application/json' },
-//     body: JSON.stringify({ query }),
-//   });
-
-//   if (!response.ok) {
-//     throw new Error(`Intent analysis failed: ${response.statusText}`);
-//   }
-
-//   return response.json();
-// }
-
-export async function getKnowledgeGraph(query: string): Promise<unknown> {
-  const response = await fetch(`${API_BASE_URL}/api/knowledge-graph`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ query }),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Knowledge graph request failed: ${response.statusText}`);
-  }
-
-  return response.json();
-}
-
 // ─── Resume Upload ───────────────────────────────────────────────────
 
 export interface ResumeUploadResponse {
@@ -113,8 +85,6 @@ export async function uploadResume(file: File): Promise<ResumeUploadResponse> {
     body: formData,
     // Do NOT set Content-Type — the browser will set it with the boundary
   });
-
-  console.log(response);
 
   if (!response.ok) {
     throw new Error(`Resume upload failed: ${response.statusText}`);

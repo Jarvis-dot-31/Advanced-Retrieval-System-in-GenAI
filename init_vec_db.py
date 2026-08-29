@@ -29,25 +29,3 @@ makedirs("Vecdb_embeddings", exist_ok=True)
 with open("Vecdb_embeddings/docs.pickle","wb") as f:
   pickle.dump(docs,f)
 faiss.write_index(index,"Vecdb_embeddings/docs.index")
-
-# query="Someone good at building cloud infrastructure"
-
-# enc=model.encode([query])
-# enc=np.array(enc).astype('float32')
-# dist,ind=index.search(enc,k=5)
-
-# for i in range(len(ind[0])):
-#   print(f'Confidence: {dist[0][i]:.4f}')
-#   print(f'Doc: {docs[ind[0][i]]}')
-
-# Cross-Encoder
-# cand=[docs[i] for i in ind[0]]
-# cross_model = CrossEncoder('cross-encoder/ms-marco-MiniLM-L-6-v2')
-# pairs=[[query,doc] for doc in cand]
-# scores=cross_model.predict(pairs)
-
-# idx=np.argsort(scores)[::-1]
-# top_docs=[cand[i] for i in idx[:5]]
-
-# for i in top_docs:
-#   print(i)

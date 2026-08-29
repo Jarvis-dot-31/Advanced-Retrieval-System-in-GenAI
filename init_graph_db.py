@@ -10,7 +10,7 @@ def run_pipeline(csv_path: str):
     df = pd.read_csv(csv_path).fillna("")
     faiss_path = "Vecdb_embeddings/docs.index"
     if not os.path.exists(faiss_path):
-        print(f"Error: {faiss_path} not found. Please run vec_db.py first.")
+        print(f"Error: {faiss_path} not found. Please run init_vec_db.py first.")
         return
         
     faiss_index = faiss.read_index(faiss_path)

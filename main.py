@@ -206,29 +206,6 @@ es = OpenSearch(
 df=pd.read_csv("Dataset/profiles.csv")
 df = df.replace({np.nan: None})
 
-# mappings= {
-#         "cloud": ["AWS", "Azure", "GCP", "Deocker", "Kubernetes"],
-#         "infrastructure": ["Terraform", "Ansible", "AWS", "Azure", "Docker"],
-#         "web": ["HTML", "CSS", "JavaScript", "React", "Angular"],
-#         "frontend": ["HTML", "CSS", "JavaScript", "React", "Angular", "Vue"],
-#         "backend": ["Node.js", "Django", "Spring", "FastAPI", "Express"],
-#         "fullstack": ["React", "Node.js", "JavaScript", "MongoDB"],
-#         "devops": ["Docker", "Kubernetes", "Jenkins", "Terraform", "CI/CD"],
-#         "data": ["Python", "SQL", "Pandas", "Spark", "ETL"],
-#         "mobile": ["React Native", "Flutter", "Swift", "Kotlin", "Android"],
-#         "security": ["Cybersecurity", "Pentesting", "SIEM", "Firewall"],
-#         "database": ["SQL", "MySQL", "PostgreSQL", "MongoDB", "Oracle"],
-#         "automation": ["Selenium", "Python", "Ansible", "Terraform"],
-#         "testing": ["Selenium", "JUnit", "Pytest", "Cypress", "QA"],
-#         "ci/cd": ["Jenkins", "GitLab", "GitHub Actions", "CircleCI", "Travis CI"],
-#     }
-
-qu="CI/CD pipeline engineer"
-entities=["CI/CD","engineer","Jenkins"]
-min_yoe=0
-hyde_emb=[]
-rephrased_qu=[]
-
 @app.post("/query")
 async def search(req:SearchAPI):
     query=req.query
@@ -414,8 +391,6 @@ async def search(req:SearchAPI):
             "rank_score": entry["final_score"],
             "candidate": entry["candidate"]
         })
-        print(f'Final Score - {entry["final_score"]:.4f}  (RRF={entry["rrf_score"]:.4f}, CE={entry["ce_score"]:.4f})')
-        print(entry["candidate"])
 
     reason_tasks = [generate_reason(r["candidate"], qu) for r in final_results]
     reasons = await asyncio.gather(*reason_tasks)
